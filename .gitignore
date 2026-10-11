@@ -103,6 +103,11 @@ results/gpqa/
 # output, not as a raw dump. Regenerate with scripts/mmlu/run.py.
 results/mmlu_results/
 
+# ETHICS commonsense probe. samples.jsonl embeds the scenario text. The
+# official commonsense split is drawn from Reddit, so the raw tree stays out.
+# Regenerate with scripts/ethics/run.py.
+results/ethics_results/
+
 # Weight-movement analysis: histograms, summary CSVs and figures for how far
 # ES and RL post-training moved the parameters. Local-only apart from the two
 # per-parameter weight-change figures the README embeds; the rest regenerates
