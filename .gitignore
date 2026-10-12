@@ -146,3 +146,7 @@ results/logs/
 # 2-scale pass@k tree is ~2.2GB).
 results/results/
 .scratch/
+
+# Dropped grader audit (kept local only)
+scripts/grader_audit/
+results/grader_audit/
