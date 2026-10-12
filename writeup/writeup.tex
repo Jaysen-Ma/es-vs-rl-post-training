@@ -46,7 +46,7 @@ We compare two scales of Qwen2.5, each with an ES arm we train and a public Simp
 
 \paragraph{ES arm.} We trained full-parameter ES with Qiu et al.'s method and code~\cite{qiu}, using identical hyperparameters at both scales: noise scale $\sigma = 0.001$, learning rate $\alpha = \sigma/2 = 0.0005$, population 32, 50 iterations, batch 256, 2,048-token cap. The training data were the 8,523 level-3-to-5 MATH problems used by SimpleRL-Zoo, in the same order. Each run used 8$\times$ RTX 4090 48GB and took 3h22m (1.5B) or 4h35m (7B).
 
-\paragraph{GRPO arm.} We use the published SimpleRL-Zoo GRPO checkpoint~\cite{simplerl} at each scale. It was trained on the same problems with a much larger budget (Table~\ref{tab:budget}).
+\paragraph{GRPO arm.} For RLVR we take the published SimpleRL-Zoo GRPO checkpoint~\cite{simplerl} at each scale, trained on the same problem set under a much larger budget (Table~\ref{tab:budget}).
 
 \begin{table}[H]\centering\small
 \begin{tabular}{lccccccc}\toprule
@@ -59,9 +59,9 @@ GRPO/ES & 4$\times$ & 2$\times$ & 0.25$\times$ & 8$\times$ & 8$\times$ & 2$\time
 \label{tab:budget}
 \end{table}
 
-\paragraph{Benchmarks and metrics.} We evaluate on AIME24 ($n=30$, $k\le512$), MATH500 ($n=500$), Minerva Math ($n=272$) and OlympiadBench ($n=675$), the last three with $k\le128$. Generation settings were identical throughout: temperature 0.6, top-$p$ 0.95, 2,048 max tokens, the Qwen prompt template that asks for a \verb|\boxed{}| answer, seed 1. \emph{pass@max} is pass@$k$ at the largest $k$ sampled. We also report a per-question breakdown: a question is \emph{solvable} if at least one of the samples is correct; \emph{narrow} is the share of questions the base solves and the trained model does not, \emph{gain} the reverse, and \emph{net coverage} = gain $-$ narrow.
+\paragraph{Benchmarks and metrics.} Reasoning is evaluated on AIME24 ($n=30$, $k\le512$), MATH500 ($n=500$), Minerva Math ($n=272$) and OlympiadBench ($n=675$); the last three use $k\le128$. All models share the same decoding setup: temperature 0.6, top-$p$ 0.95, 2,048 max tokens, the Qwen template that requests a \verb|\boxed{}| answer, seed 1. \emph{pass@max} denotes pass@$k$ at the largest $k$ we sample. We also tabulate per-question coverage: a problem is \emph{solvable} if any sample is correct; \emph{narrow} is the fraction the base solves but the trained model does not, \emph{gain} the opposite, and \emph{net coverage} = gain $-$ narrow.
 
-\paragraph{Grader.} The pass@$k$ evaluation extracts answers with the Qwen2.5-Math toolkit parser (\verb|\boxed{}|, then ``the answer is'', then ``final answer is'', then the last number), the same rule SimpleRL-Zoo trained against. ES was rewarded only for the last \verb|\boxed{}|. ES raised \verb|\boxed{}| emission from 14.6\% to 24.2\%, a gain the lenient evaluation largely ignores; this grader therefore probably favours GRPO over ES.
+\paragraph{Grader.} Answers are parsed with the Qwen2.5-Math toolkit (\verb|\boxed{}|, then ``the answer is'', then ``final answer is'', then the last number), matching the rule SimpleRL-Zoo used in training. ES received reward only from the last \verb|\boxed{}|. Training increased \verb|\boxed{}| rate from 14.6\% to 24.2\%, which this lenient parser mostly does not credit; the grader therefore probably favours GRPO over ES.
 
 \paragraph{Statistics.} Every model answers the same items, so we compare each trained arm with its own base using a paired (exact McNemar) test: it ignores items both get right or both get wrong, and asks whether the trained arm's wins among the disagreements differ from a coin flip. Within each benchmark family we correct for multiple comparisons with Bonferroni: for MMLU (4 comparisons) we report $p$ multiplied by 4; for ETHICS (20 comparisons) we report raw $p$ and call a change significant if $p < 0.05/20 = 0.0025$. Both amount to the same family-wise 0.05 criterion.
 
@@ -106,7 +106,7 @@ OlympiadBench & 3.9 & 13.3 & +9.4 & 3.4 & 12.9 & +9.5 & 3.4 & 5.0 & +1.6 & 5.5 &
 \paragraph{Interpretation.} The 7B curves are consistent with ES preserving the pass@$k$ ceiling better than GRPO on these benchmarks. Budget and grader both confound the comparison (Section~\ref{sec:lim}): ES ran 50 iterations, a tenth of the 500 that Qiu et al.\ suggest, against a GRPO checkpoint that saw 8$\times$ the data.
 
 \section{How far did the weights move?}
-Before testing for side effects, we quantify how much each method alters the base weights. For every parameter we take the trained value minus the base value. ES moves the weights much further than GRPO: by standard deviation of the differences, 56$\times$ at 1.5B and 74$\times$ at 7B (at 7B, $\sigma = 6.8\times10^{-4}$ for ES vs.\ $9.2\times10^{-6}$ for GRPO). GRPO makes a far smaller and more selective change (Figure~\ref{fig:w}).
+Large parameter shifts raise the stakes for unintended effects. We first measure how far each method moves the base weights. For every parameter we take the trained value minus the base value. ES moves the weights much further than GRPO: by standard deviation of the differences, 56$\times$ at 1.5B and 74$\times$ at 7B (at 7B, $\sigma = 6.8\times10^{-4}$ for ES vs.\ $9.2\times10^{-6}$ for GRPO). GRPO makes a far smaller and more selective change (Figure~\ref{fig:w}).
 
 \begin{figure}[H]\centering
 \includegraphics[width=0.42\linewidth]{weight_change_1.5B.png}\hfill
@@ -126,7 +126,7 @@ McNemar $p$ ($\times4$) & -- & 0.37 & 0.54 & -- & 1.00 & 0.07\\\bottomrule
 \caption{MMLU 0-shot accuracy. No trained arm differs significantly from its base.}\label{tab:mmlu}
 \end{table}
 
-\paragraph{Interpretation.} Neither method changes MMLU accuracy at either scale (Table~\ref{tab:mmlu}), so we see no forgetting. GPQA-diamond (198 questions, 10 answer-order permutations) is uninformative, because every arm, including both bases, averages 23.69--26.01\%, which is chance level. By this standard check, capability is preserved. It remains open whether the models still \emph{answer} like their bases on questions that are not about capability.
+\paragraph{Interpretation.} Table~\ref{tab:mmlu} shows no significant MMLU shift at either scale, so we do not observe classical forgetting on this benchmark. GPQA-diamond (198 questions, 10 answer-order permutations) sits at chance for every arm (23.69--26.01\%, bases included) and adds little. Broad capability therefore looks stable under this test. Whether behaviour on non-capability tasks still matches the base is separate.
 
 \section{ETHICS: moral-judgement side effects}
 MMLU is flat, so we turn to moral judgement. Because no arm was trained on such items, any movement is an unintended side effect.
@@ -152,7 +152,7 @@ Utilitarianism & 50.0 & 51.1 & 52.5 & 52.4 & 73.5 & 72.5 & 73.7\\\bottomrule
 
 At 1.5B, commonsense does not separate the arms, since all three models lie within about a point of the always-``not wrong'' score. 1.5B-ES drops on deontology (9.8\%$\to$4.1\%, $+7/-58$) and justice (16.0\%$\to$7.0\%, $+23/-84$), and less on virtue (46.8\%$\to$42.9\%); 1.5B-GRPO gains on deontology. In total, five of the 20 comparisons are significant.
 
-\paragraph{Interpretation.} At 7B, maths-only post-training changes accuracy on commonsense moral judgements while MMLU stays flat, so capability scores alone would not flag the change. The measurement is narrow: we score base models by log-likelihood, without a chat template, with one zero-shot prompt per subset and the positive answer always the same word. It does not tell us what the models would generate.
+\paragraph{Interpretation.} At 7B, maths-only post-training moves commonsense ETHICS accuracy while MMLU stays flat, so a capability-only forgetting check would miss it. The protocol is narrow: log-likelihood scoring without a chat template, one zero-shot prompt per subset, and a fixed positive reply word. It does not characterize free-form generations.
 
 \section{Limitations}\label{sec:lim}
 \begin{itemize}
