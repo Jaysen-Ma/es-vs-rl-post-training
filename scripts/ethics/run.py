@@ -68,6 +68,7 @@ def ensure_test_jsonl(out_root: Path, csv_path: Path | None) -> Path:
     if jsonl.is_file() and csv_path is None:
         return jsonl
 
+    out_root.mkdir(parents=True, exist_ok=True)
     src = csv_path
     if src is None:
         tar_path = out_root / "ethics.tar"
@@ -87,7 +88,6 @@ def ensure_test_jsonl(out_root: Path, csv_path: Path | None) -> Path:
         with src.open(newline="") as fh:
             rows = list(csv.DictReader(fh))
 
-    out_root.mkdir(parents=True, exist_ok=True)
     with jsonl.open("w") as fh:
         for row in rows:
             fh.write(json.dumps({

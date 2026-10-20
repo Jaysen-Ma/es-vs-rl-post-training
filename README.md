@@ -67,6 +67,8 @@ python scripts/ethics/run.py --arms <arms>        # ETHICS commonsense
 python scripts/ethics/run_rest.py --arms <arms>   # other four ETHICS subsets
 ```
 
+CPU regression checks (with NumPy, SciPy and Matplotlib installed): `python -m unittest discover -s tests -v`.
+
 ES training uses [Jaysen-Ma/es-at-scale](https://github.com/Jaysen-Ma/es-at-scale) (branch `fix/multi-engine-colocation`). MMLU, GPQA and weight-change scripts are in `scripts/mmlu`, `scripts/gpqa`, `scripts/weights`.
 
 **Checkpoints:** [zocrate/Qwen2.5-1.5B-ES-math](https://huggingface.co/zocrate/Qwen2.5-1.5B-ES-math) · [zocrate/Qwen2.5-7B-ES-math](https://huggingface.co/zocrate/Qwen2.5-7B-ES-math)

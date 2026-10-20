@@ -73,19 +73,31 @@ def load_arm(arm_dir: Path) -> tuple[dict, dict[int, int], dict[int, str], dict[
     results_paths = sorted(arm_dir.rglob("results_*.json"))
     if not results_paths:
         raise FileNotFoundError(f"no results_*.json under {arm_dir}")
-    results = json.loads(results_paths[-1].read_text())
+    results_path = results_paths[-1]
+    results = json.loads(results_path.read_text())
+    stamp = results_path.name.removeprefix("results_").removesuffix(".json")
+    samples_path = results_path.with_name(f"samples_{TASK}_{stamp}.jsonl")
+    if not samples_path.is_file():
+        raise FileNotFoundError(f"missing samples for selected run: {samples_path}")
 
     correct: dict[int, int] = {}
     hashes: dict[int, str] = {}
     picked: dict[int, int] = {}
-    for samples_path in sorted(arm_dir.rglob(f"samples_{TASK}_*.jsonl")):
-        with samples_path.open() as fh:
-            for line in fh:
-                rec = json.loads(line)
-                correct[rec["doc_id"]] = int(rec["acc"])
-                hashes[rec["doc_id"]] = rec.get("doc_hash", "")
-                lls = [x[0] for x in rec["filtered_resps"]]
-                picked[rec["doc_id"]] = max(range(len(lls)), key=lambda i: lls[i])
+    with samples_path.open() as fh:
+        for line in fh:
+            rec = json.loads(line)
+            doc_id = rec["doc_id"]
+            if doc_id in correct:
+                raise ValueError(f"duplicate doc_id {doc_id} in {samples_path}")
+            correct[doc_id] = int(rec["acc"])
+            hashes[doc_id] = rec.get("doc_hash", "")
+            lls = [x[0] for x in rec["filtered_resps"]]
+            picked[doc_id] = max(range(len(lls)), key=lambda i: lls[i])
+    expected = results["n-samples"][TASK]["effective"]
+    if len(correct) != expected:
+        raise ValueError(
+            f"incomplete samples in {samples_path}: expected {expected}, found {len(correct)}"
+        )
     return results, correct, hashes, picked
 
 

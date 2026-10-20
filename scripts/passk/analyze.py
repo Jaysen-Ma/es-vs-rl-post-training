@@ -25,7 +25,9 @@ comparison; three or more adds a four-way breakdown of every extra label vs.
 the baseline. `--baseline` picks which `--label` is the reference (defaults
 to the first `--label` given). Every non-baseline arm's k-grid must equal the
 baseline's, or be a strict prefix of it (e.g. a cheap low-k check run before
-committing to the full sample budget) — its curve then just stops early. A
+committing to the full sample budget) — its curve then just stops early.
+All arms must cover the same question IDs. Four-way breakdowns require equal
+sample budgets; pairs with unequal budgets are omitted from that output. A
 benchmark missing for any requested label is skipped with a warning rather
 than failing the whole run.
 """
@@ -90,6 +92,8 @@ def pass_at_k_curve(scores_by_idx: dict) -> tuple:
     if len(lens) != 1:
         raise ValueError(f"Inconsistent n_sampling across questions: {lens}")
     n = lens.pop()
+    if n < 1:
+        raise ValueError("Scores must contain at least one sample per question")
 
     def estimator(n, c, k):
         if n - c < k:
@@ -103,12 +107,12 @@ def pass_at_k_curve(scores_by_idx: dict) -> tuple:
 
 
 def four_way_breakdown(base: dict, trained: dict) -> dict:
-    common_idx = sorted(set(base) & set(trained))
-    if len(common_idx) != len(base) or len(common_idx) != len(trained):
-        print(
-            f"Warning: base has {len(base)} questions, trained has {len(trained)}, "
-            f"{len(common_idx)} in common. Using only the common set."
-        )
+    if not base or set(base) != set(trained):
+        raise ValueError("Four-way breakdown requires identical, nonempty question sets")
+    sample_counts = {len(v) for scores in (base, trained) for v in scores.values()}
+    if len(sample_counts) != 1 or 0 in sample_counts:
+        raise ValueError("Four-way breakdown requires equal, positive sample budgets")
+    common_idx = sorted(base)
 
     counts = {"base_solved_trained_solved": 0, "base_solved_trained_failed": 0,
               "base_failed_trained_solved": 0, "base_failed_trained_failed": 0}
@@ -174,6 +178,15 @@ def plot_passk(curves: dict, baseline: str, title: str, out_path: str):
 
 def analyze_benchmark(label_dirs: dict, baseline: str, title: str, out_prefix: str, plot: bool):
     scores = {label: load_scores(path) for label, path in label_dirs.items()}
+    baseline_ids = set(scores[baseline])
+    for label, arm_scores in scores.items():
+        ids = set(arm_scores)
+        if ids != baseline_ids:
+            raise ValueError(
+                f"{label!r} question IDs differ from baseline {baseline!r}: "
+                f"{len(baseline_ids - ids)} missing, {len(ids - baseline_ids)} extra. "
+                "Complete the missing shards before comparing arms."
+            )
     curves = {label: pass_at_k_curve(scores[label]) for label in label_dirs}
 
     baseline_ks = curves[baseline][0]
@@ -187,13 +200,18 @@ def analyze_benchmark(label_dirs: dict, baseline: str, title: str, out_prefix: s
             "n_sampling as the baseline, or a smaller uniform override."
         )
         print(f"Note: {label} n_sampling ({ks[-1]}) is smaller than {baseline} ({baseline_ks[-1]}) — "
-              f"its pass@k curve and 'solvable' bar only cover k up to {ks[-1]}.")
+              f"its pass@k curve only covers k up to {ks[-1]}.")
 
     n_sampling = {label: len(next(iter(s.values()))) for label, s in scores.items()}
-    breakdowns = {
-        label: four_way_breakdown(scores[baseline], scores[label])
-        for label in label_dirs if label != baseline
-    }
+    breakdowns = {}
+    for label in label_dirs:
+        if label == baseline:
+            continue
+        if n_sampling[label] != n_sampling[baseline]:
+            print(f"Skipping {label} vs {baseline} four-way breakdown: unequal "
+                  f"sample budgets ({n_sampling[label]} vs {n_sampling[baseline]}).")
+            continue
+        breakdowns[label] = four_way_breakdown(scores[baseline], scores[label])
 
     out = {
         "baseline": baseline,

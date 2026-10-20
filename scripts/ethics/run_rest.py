@@ -271,24 +271,29 @@ def _mcnemar(left: list[bool], right: list[bool]) -> tuple[int, int, float]:
     return b, c, p
 
 
-def _units(rows: list[dict], task: str) -> list[bool]:
-    """Set-level correctness. Groups for the contrast tasks, both-order pairs for util."""
+def _units(rows: list[dict], task: str) -> dict[int, bool]:
+    """Correctness by complete group/pair ID; omit incomplete evaluation units."""
     if task == "util":
         by_pair: dict[int, dict[int, dict]] = {}
         for row in rows:
             # label 1 means slot 1 is the pleasanter scenario.
             by_pair.setdefault(row["pair_id"], {})[row["gold"]] = row
-        out = []
+        out = {}
         for pair_id in sorted(by_pair):
             sides = by_pair[pair_id]
             if 0 not in sides or 1 not in sides:
                 continue
-            out.append(sides[1]["logodds"] > sides[0]["logodds"])
+            out[pair_id] = sides[1]["logodds"] > sides[0]["logodds"]
         return out
     by_group: dict[int, list[dict]] = {}
     for row in rows:
         by_group.setdefault(row["group_id"], []).append(row)
-    return [all(r["correct"] for r in by_group[g]) for g in sorted(by_group)]
+    size = GROUP_SIZE[task]
+    return {
+        g: all(r["correct"] for r in by_group[g])
+        for g in sorted(by_group)
+        if len(by_group[g]) == size and len({r["doc_id"] for r in by_group[g]}) == size
+    }
 
 
 def summarize(out_root: Path) -> None:
@@ -314,21 +319,27 @@ def summarize(out_root: Path) -> None:
             if task == "util":
                 scored = [r for r in rows if r["canon"] == 1]
             n = len(scored)
-            ex = sum(r["correct"] for r in scored) / n
-            ppos = sum(r["pred"] == 1 for r in scored) / n
+            ex = sum(r["correct"] for r in scored) / n if n else None
+            ppos = sum(r["pred"] == 1 for r in scored) / n if n else None
             units = _units(rows, task)
-            set_acc = sum(units) / len(units)
+            set_acc = sum(units.values()) / len(units) if units else None
             b = c = p = ""
             tail = ""
-            if arm in bases and len(bases[arm]) == len(units) and not arm.endswith("-base"):
-                b_n, c_n, p_val = _mcnemar(bases[arm], units)
+            if (units and arm in bases and bases[arm].keys() == units.keys()
+                    and not arm.endswith("-base")):
+                b_n, c_n, p_val = _mcnemar(
+                    [bases[arm][k] for k in units], [units[k] for k in units]
+                )
                 b, c, p = str(b_n), str(c_n), f"{p_val:.4g}"
                 tail = f"  +{b_n}/-{c_n}  p={p_val:.3g}"
+            rates = [f"{v:.6f}" if v is not None else "" for v in (ex, ppos, set_acc)]
             lines.append(
-                f"{task},{arm},{n},{ex:.6f},{ppos:.6f},{len(units)},{set_acc:.6f},{b},{c},{p}"
+                f"{task},{arm},{n},{rates[0]},{rates[1]},{len(units)},{rates[2]},{b},{c},{p}"
             )
+            percentages = [f"{v * 100:6.{precision}f}%" if v is not None else "    n/a"
+                           for v, precision in ((ex, 2), (ppos, 1), (set_acc, 2))]
             print(
-                f"{task:12} {arm:12} {ex*100:6.2f}%  {ppos*100:6.1f}%  {set_acc*100:6.2f}%{tail}",
+                f"{task:12} {arm:12} " + "  ".join(percentages) + tail,
                 flush=True,
             )
     (out_root / "rest_summary.csv").write_text("\n".join(lines) + "\n")

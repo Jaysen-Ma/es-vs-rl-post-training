@@ -36,7 +36,6 @@ COLORS = {"base": "#1b7a72", "ES": "#e8776a", "RL": "#6a5acd"}
 NAMES = {"base": "Base", "ES": "ES-trained", "RL": "RL (SimpleRL-Zoo)"}
 
 N_BINS = 512
-SIGMA_SPAN = 6.0
 MODULE_ORDER = ["q_proj", "k_proj", "v_proj", "o_proj",
                 "gate_proj", "up_proj", "down_proj", "embed_tokens", "lm_head"]
 
@@ -59,9 +58,9 @@ def read_hist(path: Path, stats: dict) -> dict:
     """Rebuild the full 512-bin count array per group.
 
     compare.py only writes non-empty bins, so the empty ones are restored here
-    from the deterministic grid (mean +/- 6 sigma, 512 bins). Empty bins become
-    NaN rather than 0 so a log axis breaks the line instead of silently
-    bridging a gap.
+    from the serialized underflow/overflow edges. Base and trained share
+    the base grid, even when their own means and standard deviations differ.
+    Empty bins remain zero here and are masked when drawing a log axis.
     """
     raw: dict = {}
     for path_row in [path]:
@@ -69,7 +68,12 @@ def read_hist(path: Path, stats: dict) -> dict:
             for r in csv.DictReader(fh):
                 key = (r["series"], r["grouping"], r["group"])
                 if r["bin"] in ("underflow", "overflow"):
-                    raw.setdefault(key, {})[r["bin"]] = int(r["count"])
+                    bins = raw.setdefault(key, {})
+                    bins[r["bin"]] = int(r["count"])
+                    if r["bin"] == "underflow":
+                        bins["lo"] = float(r["right"])
+                    else:
+                        bins["hi"] = float(r["left"])
                     continue
                 raw.setdefault(key, {})[int(r["bin"])] = int(r["count"])
     out = {}
@@ -77,8 +81,8 @@ def read_hist(path: Path, stats: dict) -> dict:
         st = stats.get(key)
         if st is None or st["std"] <= 0:
             continue
-        span = SIGMA_SPAN * st["std"]
-        lo, width = st["mean"] - span, 2 * span / N_BINS
+        lo = bins["lo"]
+        width = (bins["hi"] - lo) / N_BINS
         counts = np.zeros(N_BINS)
         for i, c in bins.items():
             if isinstance(i, int):
