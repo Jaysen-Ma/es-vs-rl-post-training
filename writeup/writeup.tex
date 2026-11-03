@@ -15,6 +15,10 @@
 \begin{document}
 \maketitle
 
+\begin{center}
+\textbf{Draft --- work in progress}
+\end{center}
+
 \begin{abstract}
 Post-training on tasks with verifiable answers is now the standard way to improve mathematical and programming performance in large language models. The dominant approach is reinforcement learning with verifiable rewards (RLVR), typically implemented with GRPO; evolution strategies (ES) have recently been proposed as a memory-efficient alternative. We compare what these two post-training routes change beyond the target metric, along two axes: reasoning capacity, measured by pass@$k$, and moral judgement, measured on ETHICS. We study Qwen2.5-1.5B and Qwen2.5-7B base models alongside ES and GRPO arms trained on the same 8,523 maths problems, and score pass@$k$ up to 512 on four benchmarks. ES preserves the base model's reasoning capacity at least as well as GRPO at both scales, and better at 7B, despite moving its weights tens of times further. We also find that maths-only post-training can alter a model's moral judgements, as measured by ETHICS, while preserving or improving its reasoning and without changing MMLU. At 7B, ES lowers ETHICS commonsense accuracy from 63.42\% to 57.68\% (paired McNemar test, $p = 9\times10^{-34}$); 7B GRPO is unchanged. We ran one run per method, and the two methods are not compute-matched.
 \end{abstract}
