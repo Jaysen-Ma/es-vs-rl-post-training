@@ -20,7 +20,7 @@
 \end{center}
 
 \begin{abstract}
-Post-training on tasks with verifiable answers is now the standard way to improve mathematical and programming performance in large language models. The dominant approach is reinforcement learning with verifiable rewards (RLVR), typically implemented with GRPO; evolution strategies (ES) have recently been proposed as a memory-efficient alternative. We compare what these two post-training routes change beyond the target metric, along two axes: reasoning capacity, measured by pass@$k$, and moral judgement, measured on ETHICS. We study Qwen2.5-1.5B and Qwen2.5-7B base models alongside ES and GRPO arms trained on the same 8,523 maths problems, and score pass@$k$ up to 512 on four benchmarks. ES preserves the base model's reasoning capacity at least as well as GRPO at both scales, and better at 7B, despite moving its weights tens of times further. We also find that maths-only post-training can alter a model's moral judgements, as measured by ETHICS, while preserving or improving its reasoning and without changing MMLU. At 7B, ES lowers ETHICS commonsense accuracy from 63.42\% to 57.68\% (paired McNemar test, $p = 9\times10^{-34}$); 7B GRPO is unchanged. We ran one run per method, and the two methods are not compute-matched.
+Maths-only post-training with group relative policy optimisation (GRPO) can improve first-attempt accuracy while narrowing the range of problems a model solves under repeated sampling. We ask whether this narrowing also occurs with evolution strategies (ES), and how these two methods affect behaviour beyond maths. We compare Qwen2.5-1.5B and Qwen2.5-7B models post-trained on the same maths dataset, examining mathematical performance, weight movement, general knowledge and moral judgement. At 1.5B, both methods improve mathematical performance across the evaluated sampling budgets. At 7B, GRPO improves first-attempt accuracy but reduces coverage at larger sampling budgets, while ES preserves or improves coverage on three of four benchmarks. ES produces weight changes whose standard deviation is dozens of times larger than GRPO's. Yet neither method significantly changes MMLU accuracy, suggesting that substantial weight movement can coexist with preserved general knowledge performance. ES nevertheless significantly reduces accuracy on some ETHICS subsets at both model sizes, while GRPO shows no significant declines. These exploratory findings suggest that mathematical gains and preserved general knowledge can accompany changes in moral judgement. They motivate investigating how these effects develop as evolutionary training scales up, and what they may imply for safety and alignment. Single training runs and differences in training budgets and reward graders limit attribution of these effects to the methods themselves.
 \end{abstract}
 
 \begin{figure}[h]\centering
@@ -29,28 +29,24 @@ Post-training on tasks with verifiable answers is now the standard way to improv
 \end{figure}
 
 \section{Introduction}
-Large language models are increasingly post-trained on mathematics, code, and other domains where success can be verified automatically. The prevailing recipe is reinforcement learning with verifiable rewards (RLVR). GRPO (group relative policy optimisation) is a common instantiation: it draws several completions per prompt and uses their relative rewards as the learning signal. SimpleRL-Zoo~\cite{simplerl} applies this recipe to open base models. Separately, evolution strategies (ES) have been studied as a post-training alternative~\cite{qiu}: ES perturbs all parameters with random noise, scores a population of perturbed models, and moves toward the better ones, without backpropagation.
+Post-training with group relative policy optimisation (GRPO) can make language models more likely to answer maths questions correctly on their first attempt. Yet previous work has found that these gains can accompany a narrowing of the range of problems a model solves under repeated sampling: given enough attempts, the base model can outperform its post-trained counterpart~\cite{yue}. This raises a question about the method itself. Is narrowing specific to GRPO, or does it also occur with other approaches to post-training?
 
-Practitioners usually judge these methods by the metric they target, such as pass@1 on a maths benchmark. That leaves open what else moves when task, reward, and data are shared. We hold those fixed and compare ES and GRPO on two axes. The first is \emph{reasoning capacity}, measured by pass@$k$: the probability that at least one of $k$ sampled answers is correct. pass@1 captures average-case success; pass@$k$ at large $k$ captures which problems the model can solve at all. Yue et al.~\cite{yue} motivate this view with RLVR-trained models: they gain at small $k$ but the base model overtakes them as $k$ grows, consistent with a narrower large-$k$ ceiling. We ask whether ES and GRPO show the same split here.
+Evolution strategies (ES) offer a different approach to RL post-training. ES evaluates random perturbations to model parameters and updates the weights towards perturbations that receive higher rewards, without backpropagation. Recent work has demonstrated ES for language-model post-training~\cite{qiu}, while EGGROLL uses low-rank perturbations to make evolutionary optimisation more efficient at large scale~\cite{sarkar}. Comparing ES with GRPO allows us to investigate whether their different update mechanisms produce different patterns of mathematical improvement and reasoning coverage.
 
-The second axis is \emph{moral judgement}. Training is maths-only throughout, so movement on other domains is not something the objective rewards. MMLU and similar suites test whether broad capability is preserved. We add ETHICS~\cite{ethics} to ask whether moral judgements shift even when those capability scores do not.
+The comparison also raises a broader question: how much does maths-only post-training change model behaviour beyond maths? Improvements on the training task provide only a partial account of what a model has learned or retained. General knowledge evaluations can reveal some effects, but stable scores need not imply stable responses to moral questions. Understanding these changes matters when considering the safety and alignment implications of scaling up post-training.
 
-Our findings, in the order of the subsections of Section~\ref{sec:results}:
-\begin{enumerate}
-\item At 1.5B, neither ES nor GRPO narrows the pass@$k$ ceiling: both stay above base at every measured $k$.
-\item At 7B, GRPO leads at small $k$ but falls below base as $k$ grows on all four benchmarks, whereas ES finishes at or above base on three of four (Figure~\ref{fig:hero}).
-\item Neither method changes MMLU accuracy at either scale, although ES moves the weights far more than GRPO.
-\item Capability and moral judgement can move separately. Despite unchanged MMLU accuracy, 7B-ES lowers ETHICS commonsense accuracy while 7B-GRPO does not. A post-training method can preserve or improve capability while shifting moral judgements, and a capability check alone can miss the shift.
-\end{enumerate}
+We study Qwen2.5-1.5B and Qwen2.5-7B, comparing each base model with ES and GRPO checkpoints post-trained on the same maths dataset. We train the ES checkpoints using the method in~\cite{qiu} and use publicly available GRPO checkpoints from SimpleRL-Zoo~\cite{simplerl}. We examine mathematical performance across sampling budgets, the extent of parameter changes, general knowledge retention on MMLU, and moral judgement on ETHICS~\cite{ethics}.
 
-\section{Setup}\label{sec:setup}
-We compare two scales of Qwen2.5, each with an ES arm we train and a public SimpleRL-Zoo GRPO checkpoint on the same MATH subset.
+The results differ across model sizes and evaluation domains. At 1.5B, both methods improve mathematical performance across the measured sampling budgets. At 7B, GRPO achieves stronger first-attempt performance but falls below the base model at larger sampling budgets on all four benchmarks; ES matches or exceeds the base on three. ES produces weight changes whose standard deviation is dozens of times larger than GRPO's, yet neither method significantly changes MMLU accuracy. ES nevertheless significantly reduces accuracy on some ETHICS subsets at both model sizes, whereas GRPO shows no significant declines.
 
-\paragraph{Models and arms.} We use two base models, \texttt{Qwen2.5-1.5B} and \texttt{Qwen2.5-7B}, and compare each with two post-trained arms. We name the six models 1.5B-Base, 1.5B-ES, 1.5B-GRPO, 7B-Base, 7B-ES and 7B-GRPO.
+Section~\ref{sec:setup} describes the models, training procedures and evaluation methods. Section~\ref{sec:results} examines the results in four parts: mathematical accuracy and reasoning coverage (\S\ref{sec:reasoning}), changes in model parameters (\S\ref{sec:weights}), general knowledge retention (\S\ref{sec:mmlu}), and changes in moral judgement (\S\ref{sec:ethics}). Section~\ref{sec:lim} discusses the limits of the comparison, including differences in training budgets and reward graders. Section~\ref{sec:future} identifies questions for further study, particularly whether the observed effects persist across repeated runs, other model families and larger training budgets.
 
-\paragraph{ES arm.} We trained full-parameter ES with Qiu et al.'s method and code~\cite{qiu}, using identical hyperparameters at both scales: noise scale $\sigma = 0.001$, learning rate $\alpha = \sigma/2 = 0.0005$, population 32, 50 iterations, batch 256, 2,048-token cap. The training data were the 8,523 level-3-to-5 MATH problems used by SimpleRL-Zoo, in the same order. 
+\section{Models, training and evaluation}\label{sec:setup}
+\paragraph{Models and training data.} We study Qwen2.5-1.5B and Qwen2.5-7B. At each size, we compare the base model with an ES checkpoint trained for this study and a publicly available GRPO checkpoint from SimpleRL-Zoo~\cite{simplerl}. Both post-training methods use the same dataset of 8,523 level-3-to-5 MATH problems. We refer to the six models as 1.5B-Base, 1.5B-ES, 1.5B-GRPO, 7B-Base, 7B-ES and 7B-GRPO.
 
-\paragraph{GRPO arm.} For RLVR we take the published SimpleRL-Zoo GRPO checkpoint~\cite{simplerl} at each scale, trained on the same problem set under a much larger budget (Table~\ref{tab:budget}).
+\paragraph{ES training.} We follow the full-parameter ES method and implementation in~\cite{qiu}, using the same hyperparameters at both model sizes. Each run uses a population of 32 perturbations, batches of 256 prompts and 50 training iterations. The perturbation scale is $\sigma = 0.001$, the learning rate is $\alpha = \sigma/2 = 0.0005$, and responses are limited to 2,048 tokens.
+
+\paragraph{GRPO checkpoints and training budgets.} The SimpleRL-Zoo checkpoints use the same problem set but a larger training budget. Compared with ES, GRPO makes eight times as many prompt visits, generates twice as many responses and allows four times as many tokens per response. The comparison therefore shares training data but does not match training compute.
 
 \begin{table}[H]\centering\small
 \begin{tabular}{lccccccc}\toprule
@@ -59,20 +55,25 @@ ES & 256 & 50 & 32 (population) & 12,800 & 1.50 & 409,600 & 2,048\\
 GRPO & 1,024 & $\sim$100 & 8 (rollouts) & 102,400 & 12.01 & 819,200 & 8,192\\
 GRPO/ES & 4$\times$ & 2$\times$ & 0.25$\times$ & 8$\times$ & 8$\times$ & 2$\times$ & 4$\times$\\\bottomrule
 \end{tabular}
-\caption{Training budgets. Prompt visits = prompts/step $\times$ steps. GRPO sees 8$\times$ more data but only 2$\times$ more generations.}
+\caption{Training budgets for ES and GRPO. Prompt visits count repeated presentations of training problems; generations count the responses produced across those visits.}
 \label{tab:budget}
 \end{table}
 
-\paragraph{Benchmarks and metrics.} Reasoning is evaluated on AIME24 ($n=30$, $k\le512$), MATH500 ($n=500$), Minerva Math ($n=272$) and OlympiadBench ($n=675$); the last three use $k\le128$. All models share the same decoding setup: temperature 0.6, top-$p$ 0.95, 2,048 max tokens, the Qwen template that requests a \verb|\boxed{}| answer, seed 1. \emph{pass@max} denotes pass@$k$ at the largest $k$ we sample. We also tabulate per-question coverage: a problem is \emph{solvable} if any sample is correct; \emph{narrow} is the fraction the base solves but the trained model does not, \emph{gain} the opposite, and \emph{net coverage} = gain $-$ narrow.
+\paragraph{Mathematical evaluation.} We evaluate AIME24 (30 problems), MATH500 (500), Minerva Math (272) and OlympiadBench (675). We sample 512 responses per problem on AIME24 and 128 on each of the other benchmarks. All models use the same evaluation settings: temperature 0.6, top-$p$ 0.95, a 2,048-token response limit, seed 1, and the Qwen prompt template requesting a \verb|\boxed{}| answer.
 
-\paragraph{Grader.} Answers are parsed with the Qwen2.5-Math toolkit (\verb|\boxed{}|, then ``the answer is'', then ``final answer is'', then the last number), matching the rule SimpleRL-Zoo used in training. ES received reward only from the last \verb|\boxed{}|. ES training increased the \verb|\boxed{}| rate from 14.6\% to 24.2\%, which this lenient parser mostly does not credit; the grader therefore probably favours GRPO over ES.
+We report pass@$k$, the probability of obtaining at least one correct answer in $k$ attempts. We use \emph{pass@max} for the largest sampling budget evaluated on each benchmark. To examine which problems are gained or lost after training, we also compare coverage at the problem level. A problem counts as solved if at least one sampled response is correct. \emph{Narrowing} is the fraction of problems solved by the base model but not the post-trained model; \emph{gain} is the reverse. \emph{Net coverage} is gain minus narrowing. These measures describe coverage within the sampled responses.
 
-\paragraph{Statistics.} Every model answers the same items, so we compare each trained arm with its own base using a paired (exact McNemar) test: it ignores items both get right or both get wrong, and asks whether the trained arm's wins among the disagreements differ from a coin flip. We correct for multiple comparisons with Bonferroni: an ETHICS change counts as significant only if $p < 0.05/20 = 0.0025$, and MMLU $p$-values are multiplied by 4.
+\paragraph{Answer grading.} Evaluation uses the Qwen2.5-Math answer-extraction rules: the parser looks for a boxed answer, then answers following ``the answer is'' or ``final answer is,'' and finally the last number in the response. This matches the extraction rule used during GRPO training. ES training instead assigns rewards using only the final boxed answer.
 
-\section{Results}\label{sec:results}
+The difference matters because the two methods were rewarded under different rules. ES increased the boxed-answer rate from 14.6\% to 24.2\%, but the more permissive evaluation parser can also recover answers from responses without boxes. Improvements in formatting therefore need not translate into improvements in measured accuracy. This mismatch limits how directly we can attribute performance differences to the training methods.
 
-\subsection{Reasoning capacity (pass@$k$)}\label{sec:reasoning}
-We first ask whether each post-trained model retains the pass@$k$ ceiling of its base. Figure~\ref{fig:hero} plots the pass@$k$ curves; Tables~\ref{tab:passk} and \ref{tab:solv} summarise the numbers.
+\paragraph{Statistical comparisons.} For MMLU and ETHICS, we compare each post-trained model with its corresponding base using an exact McNemar test. This paired test examines the cases where the models disagree in correctness, asking whether gains and losses are balanced. We apply a Bonferroni correction for multiple comparisons: ETHICS results use a significance threshold of $0.05/20 = 0.0025$, while MMLU $p$-values are adjusted for four comparisons.
+
+\section{Effects of maths-only post-training}\label{sec:results}
+We examine how ES and GRPO change mathematical performance, model parameters, general knowledge and moral judgement. Each post-trained model is compared with its corresponding base.
+
+\subsection{Mathematical accuracy and reasoning coverage}\label{sec:reasoning}
+Figure~\ref{fig:hero} shows how mathematical performance changes with the number of attempts. Table~\ref{tab:passk} reports single-attempt accuracy and performance at the largest evaluated sampling budget. Table~\ref{tab:solv} separates problems gained after training from those the base model could solve but the post-trained model could not.
 
 \begin{table}[H]\centering\small
 \setlength{\tabcolsep}{4pt}
@@ -105,14 +106,18 @@ OlympiadBench & 3.9 & 13.3 & +9.4 & 3.4 & 12.9 & +9.5 & 3.4 & 5.0 & +1.6 & 5.5 &
 \caption{Solvable-question breakdown vs.\ own base, \% of questions; net coverage = gain $-$ narrow.}\label{tab:solv}
 \end{table}
 
-\paragraph{1.5B.} At this scale, neither method narrows the ceiling. 1.5B-ES and 1.5B-GRPO remain above base at every measured $k$ on all four benchmarks, with no crossover, and both expand question coverage on all four. 1.5B-ES tracks 1.5B-GRPO at pass@16 on three of four benchmarks (AIME24 9.04 vs.\ 9.27\%, MATH500 68.24 vs.\ 67.70\%, OlympiadBench 32.43 vs.\ 32.64\%; Minerva 21.65 vs.\ 25.74\%) with $\sim$1/8 of the data budget.
+\textbf{At 1.5B, both methods improve performance across the measured sampling budgets.} ES and GRPO outperform the base at every evaluated $k$ on all four benchmarks. Both also achieve positive net coverage: at the largest sampling budget, they gain more problems than they lose. ES performs similarly to GRPO at $k = 16$ on three of the four benchmarks, despite using one-eighth as many prompt visits. The unequal training budgets prevent interpreting this as a controlled comparison of efficiency.
 
-\paragraph{7B.} At 7B the two methods diverge. 7B-GRPO leads the base at small $k$: up to $k=64$ on AIME24 and OlympiadBench and up to $k=8$ on MATH500 and Minerva. Beyond that it falls below base, finishing below on all four benchmarks (net coverage $-20.0$ points on AIME24). 7B-ES improves pass@1 slightly; it finishes at or above base on MATH500, Minerva and OlympiadBench, and falls below base on AIME24 from $k=128$ (net coverage $-10.0$).
+\textbf{At 7B, first-attempt accuracy and coverage follow different patterns.} GRPO achieves the highest pass@1 on all four benchmarks. Its advantage over the base persists through $k = 64$ on AIME24 and OlympiadBench, and through $k = 8$ on MATH500 and Minerva Math. At larger sampling budgets, the base overtakes it on every benchmark.
 
-\paragraph{Summary.} The 7B curves are consistent with ES preserving the pass@$k$ ceiling better than GRPO on these benchmarks. Budget and grader both confound the comparison (Section~\ref{sec:lim}): ES ran 50 iterations, a tenth of the 500 that Qiu et al.\ suggest, against a GRPO checkpoint that saw 8$\times$ the data.
+ES also improves first-attempt accuracy, while matching or exceeding the base at the largest evaluated $k$ on three out of four tasks. The exception is AIME24, where ES falls below the base from $k = 128$. At the largest sampling budget, net coverage on AIME24 declines by 10 percentage points for ES and 20 for GRPO.
 
-\subsection{Weight movement}\label{sec:weights}
-We next measure how far each method moves the base weights. For every parameter we take the trained value minus the base value. ES moves the weights much further than GRPO: by standard deviation of the differences, 56$\times$ at 1.5B and 74$\times$ at 7B (at 7B, $\sigma = 6.8\times10^{-4}$ for ES vs.\ $9.2\times10^{-6}$ for GRPO). GRPO makes a far smaller and more selective change (Figure~\ref{fig:w}).
+These results show that narrowing is not exclusive to GRPO, although it occurs more consistently across benchmarks for GRPO in this comparison. They also suggest that the pattern may depend on model size or training progress. Differences in training budgets and reward graders, together with the absence of repeated runs, prevent us from isolating these effects.
+
+\subsection{Changes in model parameters}\label{sec:weights}
+We measure parameter changes by subtracting each base-model weight from its post-trained value. Figure~\ref{fig:w} shows the distribution of these differences.
+
+ES produces a much broader distribution of weight changes than GRPO. The standard deviation is 56 times larger at 1.5B and 74 times larger at 7B. At 7B, the respective standard deviations are $6.8 \times 10^{-4}$ and $9.2 \times 10^{-6}$.
 
 \begin{figure}[H]\centering
 \includegraphics[width=0.42\linewidth]{weight_change_1.5B.png}\hfill
@@ -120,8 +125,10 @@ We next measure how far each method moves the base weights. For every parameter 
 \caption{Distribution of per-parameter weight change (raw units). Left 1.5B, right 7B.}\label{fig:w}
 \end{figure}
 
-\subsection{General capability (MMLU)}\label{sec:mmlu}
-Large weight updates need not erase general knowledge, but they can. Both arms saw only maths, and ES in particular moved parameters far from the base (Section~\ref{sec:weights}). We test retention with MMLU zero-shot: 57 subjects, 14,042 questions, scored by log-likelihood over the four answer letters, seed 0.
+These measurements describe the magnitude of parameter changes, but do not establish their effect on model behaviour. We therefore examine whether the larger changes under ES coincide with losses in general knowledge.
+
+\subsection{General knowledge retention}\label{sec:mmlu}
+We evaluate general knowledge using MMLU, covering 14,042 questions across 57 subjects. All models are evaluated zero-shot, using the likelihoods of the four answer letters to select a response, with seed 0.
 
 \begin{table}[H]\centering\small
 \begin{tabular}{lcccccc}\toprule
@@ -132,14 +139,18 @@ McNemar $p$ ($\times4$) & -- & 0.37 & 0.54 & -- & 1.00 & 0.07\\\bottomrule
 \caption{MMLU 0-shot accuracy. No trained arm differs significantly from its base.}\label{tab:mmlu}
 \end{table}
 
-\paragraph{Summary.} Table~\ref{tab:mmlu} shows no MMLU change at either scale. GPQA-diamond (198 questions, 10 answer-order permutations) sits at chance for every arm (23.69--26.01\%, bases included) and adds little. Broad capability therefore looks stable under this test. Whether behaviour on non-capability tasks still matches the base is separate.
+Neither ES nor GRPO produces a statistically significant change from its corresponding base. All differences are smaller than 0.5 percentage points. Substantial parameter changes under ES therefore coexist with stable performance on this general knowledge evaluation.
 
-\subsection{Moral judgement (ETHICS)}\label{sec:ethics}
-We turn to moral judgement. Because no arm was trained on such items, any movement is an unintended side effect.
+We also evaluate GPQA-diamond using 198 questions and ten answer-order permutations. All six models, including the bases, score close to chance, between 23.69\% and 26.01\%. These results provide little additional evidence about knowledge retention.
 
-\paragraph{Subsets.} We use the official ETHICS test splits~\cite{ethics}: commonsense (3,885 scenarios: ``is this wrong?''), deontology and justice (``is this excuse or claim reasonable?''), virtue (``does this character show this trait?'') and utilitarianism (``is scenario 1 preferable?''). We scored all six models zero-shot, one pass each, with seed 0.
+Stable MMLU performance does not imply that other behaviours remain unchanged. We next examine responses to moral questions, which neither method was explicitly trained to address.
 
-\paragraph{Scoring.} The model does not generate text; we score each item by the log-likelihood of two reply words. Commonsense uses \verb|{scenario}\nQuestion: Is this wrong?\nAnswer:| with replies `` no''/`` yes''; the other four use the \texttt{lm\_eval} prompts, with ``unreasonable''/``reasonable'' for deontology and justice and ``no''/``yes'' for virtue and utilitarianism. Following the ETHICS paper, we score deontology, justice and virtue on \emph{contrast sets} (groups of 4, 4 and 5 items sharing a setup); a set counts only if every item in it is correct. We ask utilitarianism in both scenario orders, and a pair counts when the yes-vs-no log-odds is higher with the pleasanter scenario in slot 1. The chance column in Table~\ref{tab:ethics} assumes an independent coin flip per item. A model that always gives the same answer scores near zero on contrast sets. Significance follows Section~\ref{sec:setup} (raw $p$, threshold 0.0025).
+\subsection{Changes in moral judgement}\label{sec:ethics}
+We evaluate all six models on the official ETHICS test splits~\cite{ethics}. The five subsets assess commonsense judgements about wrongdoing, deontological judgements about excuses, justice-related claims, character traits and preferences between outcomes. These evaluations measure agreement with the dataset's labelled judgements.
+
+\paragraph{Evaluation procedure.} Each model is evaluated zero-shot with seed 0. We score the likelihoods of two candidate replies rather than generating free-form answers. Commonsense asks whether a scenario is wrong, using ``no'' and ``yes'' as the candidate replies. The remaining subsets use the \texttt{lm\_eval} prompts, with ``unreasonable'' and ``reasonable'' for deontology and justice, and ``no'' and ``yes'' for virtue and utilitarianism.
+
+Deontology, justice and virtue are evaluated in groups of four, four and five related items. A group counts as correct only when every item is answered correctly. Utilitarianism presents each scenario pair in both orders and compares the model's relative preference across those orders. The chance scores in Table~\ref{tab:ethics} assume independent random choices.
 
 \begin{table}[H]\centering\small
 \begin{tabular}{lccccccc}\toprule
@@ -154,35 +165,35 @@ Utilitarianism & 50.0 & 51.1 & 52.5 & 52.4 & 73.5 & 72.5 & 73.7\\\bottomrule
 \caption{ETHICS accuracy (\%; per scenario for commonsense, per contrast set or pair for the others). Bold: significant change vs.\ own base. Significant $p$: 7B-ES commonsense $9\times10^{-34}$; 1.5B-ES deontology $4\times10^{-11}$, justice $2\times10^{-9}$, virtue $9\times10^{-4}$; 1.5B-GRPO deontology $2\times10^{-5}$. $^*$Always answering ``not wrong'' scores 53.3\%.}\label{tab:ethics}
 \end{table}
 
-\paragraph{Result.} At 7B, ES lowers commonsense accuracy from 63.42\% to 57.68\%: it gains 69 scenarios that the base missed and loses 292 that the base answered correctly. 7B-GRPO is unchanged ($+16/-17$, $p=1.00$). The same 7B-ES checkpoint is within 0.16 points of its base on MMLU, so an accuracy-only capability check would pass it. On the other four subsets, neither 7B arm changes significantly.
+\textbf{ES reduces accuracy on some ETHICS subsets at both model sizes.} At 1.5B, ES lowers scores on deontology, justice and virtue. At 7B, it lowers commonsense accuracy. All four declines remain statistically significant after correcting for multiple comparisons. GRPO shows no statistically significant declines on ETHICS at either size.
 
-At 1.5B, commonsense does not separate the arms, since all three models lie within about a point of the always-``not wrong'' score. 1.5B-ES drops on deontology (9.8\%$\to$4.1\%, $+7/-58$) and justice (16.0\%$\to$7.0\%, $+23/-84$), and less on virtue (46.8\%$\to$42.9\%); 1.5B-GRPO gains on deontology. In total, five of the 20 comparisons are significant.
+The 1.5B commonsense results offer little separation between methods: all three models score close to the baseline obtained by always answering ``not wrong.'' At 7B, neither method significantly changes performance on the other four subsets.
 
-\paragraph{Summary.} At 7B, maths-only post-training moves commonsense ETHICS accuracy while MMLU stays flat, so a capability-only check would miss it. The protocol is narrow: log-likelihood scoring without a chat template, one zero-shot prompt per subset, and a fixed positive reply word. It does not characterize free-form generations.
+These findings show that maths-only evolutionary post-training can improve mathematical performance and preserve general knowledge scores while changing responses to moral questions. They motivate examining how these effects develop under more extensive evolutionary training and what they might imply for safety and alignment. The evaluation remains narrow: it uses fixed prompts and candidate replies without a chat template, and does not establish how the models would behave in open-ended interactions.
 
-\section{Limitations}\label{sec:lim}
-\begin{itemize}
-\item \textbf{Not compute-matched.} GRPO uses a public checkpoint with 8$\times$ the data, 2$\times$ the generations and 4$\times$ the training token cap; ES ran a tenth of the recommended iterations and may be under-trained.
-\item \textbf{Grader confound.} GRPO was trained against essentially the rule it is scored with; ES was not (Section~\ref{sec:setup}). The \texttt{math-verify} version (0.9.0 for all ES runs) is undeclared in \texttt{setup.py}, and versions disagree on real cases. Re-scoring the existing 7B completions with eight answer graders gives the same direction (GRPO below base at high $k$ on all four benchmarks, ES at or above base on three of four), with most differences within noise.
-\item \textbf{1.5B commonsense} sits at the always-``not wrong'' baseline and cannot separate the arms.
-\end{itemize}
+\section{Scope and limitations}\label{sec:lim}
+\paragraph{The comparison does not isolate the training method.} Each method is represented by one training run at each model size, and the training budgets differ substantially. GRPO uses eight times as many prompt visits, twice as many generations and four times the response-token allowance. ES runs for 50 iterations, one-tenth of the 500 suggested in~\cite{qiu}. The observed differences may therefore reflect training progress and budget as well as the update mechanism.
 
-\section{Next steps}
-\begin{itemize}
-\item Test whether ceiling narrowing depends on scale. GRPO narrows the ceiling at 7B but not at 1.5B here, but with under-trained 1.5B arms and one run per method we cannot yet tell.
-\item Test whether the ETHICS commonsense shift is specific to ES, whether it holds for larger models, and whether it also happens under GRPO/RL.
-\item Repeat runs per method across all Qwen2.5 sizes and other model families, with a GRPO arm trained in-house so budgets can be matched.
-\end{itemize}
+\paragraph{Training rewards and evaluation graders differ.} GRPO was trained with the permissive answer-ex\-traction rule used in evaluation, whereas ES received rewards only for boxed answers. Grader implementations also matter: the ES runs use \texttt{math-verify} 0.9.0, but the training package does not declare this dependency in its setup, and different versions can disagree on individual answers. Re-scoring the existing 7B responses with eight graders preserves the main pattern---GRPO falls below the base at large sampling budgets on all four benchmarks, while ES matches or exceeds it on three. This supports the robustness of the observed pattern to evaluation grading, but does not remove the difference in training rewards.
+
+\paragraph{The evaluations cover a limited range of behaviour.} Mathematical coverage is measured within finite sampling budgets. MMLU assesses general knowledge, while ETHICS measures agreement with labelled moral judgements under fixed prompts and candidate replies. Stable MMLU scores do not establish that all capabilities are preserved, and lower ETHICS scores do not by themselves establish broader safety or alignment failures. At 1.5B, commonsense ETHICS scores also remain close to the baseline obtained by always answering ``not wrong,'' limiting their usefulness for distinguishing the methods.
+
+\paragraph{The results do not establish a scaling trend.} We study two sizes from one model family. The difference between 1.5B and 7B cannot establish how either method behaves as model size or training budget increases. Likewise, the ETHICS declines observed with ES motivate further investigation but do not show whether those effects would strengthen, diminish or change direction with more training.
+
+\section{Questions for further study}\label{sec:future}
+\paragraph{Repeat the comparison under more comparable training conditions.} Multiple runs at each model size would help distinguish consistent effects from variation between runs. Training GRPO alongside ES with a shared reward grader and explicitly controlled budgets would make it easier to attribute differences to the methods. Extending the comparison to other model families would test how broadly the findings hold.
+
+\paragraph{Track changes throughout training.} Evaluating intermediate checkpoints would show when mathematical coverage, general knowledge and moral judgement begin to change. Longer ES runs would help establish whether the current results reflect an early stage of training and whether the ETHICS declines persist or develop further. Measuring weight movement alongside these evaluations could also clarify how parameter changes relate to behavioural changes.
+
+\paragraph{Broaden the assessment of safety and alignment.} The ETHICS results provide a starting point for examining behaviour beyond the training task. Further work should test whether the observed changes persist across alternative prompts, scoring methods and open-ended responses, and whether they also appear under GRPO with different training conditions. This would help assess whether the declines observed with evolutionary training extend beyond the current benchmark setup.
 
 \paragraph{Code and checkpoints.} \url{https://github.com/Jaysen-Ma/es-vs-rl-post-training}; ES checkpoints at \url{https://huggingface.co/zocrate/Qwen2.5-1.5B-ES-math} and \url{https://huggingface.co/zocrate/Qwen2.5-7B-ES-math}.
-
-\section*{Acknowledgements}
-ES training builds on the code of Qiu et al.\ (\url{https://github.com/VsonicV/es-at-scale}); pass@$k$ generation, grading and plotting build on Yue et al.'s Limit-of-RLVR code (\url{https://github.com/LeapLabTHU/limit-of-RLVR}). The GRPO arm uses the open SimpleRL-Zoo checkpoints.
 
 \begin{thebibliography}{9}
 \bibitem{yue} Y.~Yue et al. Does reinforcement learning really incentivize reasoning capacity in LLMs beyond the base model? arXiv:2504.13837, 2025.
 \bibitem{qiu} X.~Qiu et al. Evolution strategies at scale: LLM fine-tuning beyond reinforcement learning. arXiv:2509.24372, 2025.
 \bibitem{simplerl} W.~Zeng et al. SimpleRL-Zoo: Investigating and taming zero reinforcement learning for open base models in the wild. arXiv:2503.18892, 2025.
 \bibitem{ethics} D.~Hendrycks et al. Aligning AI with shared human values. arXiv:2008.02275, 2020.
+\bibitem{sarkar} B.~Sarkar et al. Evolution strategies at the hyperscale. arXiv:2511.16652, 2025.
 \end{thebibliography}
 \end{document}
