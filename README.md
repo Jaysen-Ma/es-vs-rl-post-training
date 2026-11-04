@@ -8,35 +8,39 @@
 
 ## Overview
 
-RL with verifiable rewards (RLVR) raises pass@1 on maths but tends to narrow the base model's pass@k ceiling ([Yue et al.](https://arxiv.org/abs/2504.13837)). We ask two questions:
+Post-training with group relative policy optimisation (GRPO) can make a language model more likely to solve a maths problem on its first attempt, while narrowing the range of problems it can solve under repeated sampling ([Yue et al.](https://arxiv.org/abs/2504.13837)). Is this narrowing specific to GRPO, or does it also occur with alternative post-training methods?
 
-> **Does backprop-free Evolution Strategies (ES) post-training avoid that narrowing?**
->
-> **Does maths-only post-training shift moral judgements?**
+The narrowing observed after maths-only RL post-training with GRPO raises a broader question: how much do different post-training methods change model behaviour beyond mathematical performance? In particular, do they also affect moral judgement, and what might those effects imply for safety and alignment as training is scaled up?
 
-We train Qwen2.5-1.5B and 7B with ES ([Qiu et al.](https://arxiv.org/abs/2509.24372); σ=0.001, population 32, 50 iterations) on the same 8,523 problems as the public [SimpleRL-Zoo](https://arxiv.org/abs/2503.18892) GRPO checkpoints, and compare base, ES and GRPO at pass@k up to 512.
+[Evolution strategies (ES)](https://arxiv.org/abs/2509.24372) offer a different approach to RL post-training, using reward-guided parameter perturbations without backpropagation. Comparing ES with GRPO allows us to investigate whether these methods differ in both their reasoning coverage and their effects on moral judgement.
+
+We compare Qwen2.5-1.5B and Qwen2.5-7B base models with ES and GRPO checkpoints trained on the same set of 8,523 maths problems. We evaluate mathematical performance across sampling budgets, general knowledge on MMLU, and moral judgement on ETHICS.
 
 ### Reasoning capacity (pass@k)
 
-The curves below show whether each trained model stays above its base as the number of samples k grows.
+We compare each post-trained model with its base using pass@k: the probability of obtaining at least one correct answer in k attempts.
+
+We evaluate four maths benchmarks, with up to 512 attempts per question on AIME24 and 128 on MATH500, Minerva Math and OlympiadBench.
 
 ![pass@k, Qwen2.5-1.5B (top) and 7B (bottom)](writeup/figures/hero_passk.png)
 
 > *Figure: pass@k of base, ES and GRPO (SimpleRL-Zoo) on AIME24, MATH500, Minerva Math and OlympiadBench; top row Qwen2.5-1.5B, bottom row Qwen2.5-7B.*
 
-**At 1.5B, neither ES nor GRPO narrows the ceiling.** Both stay above base at every k on all four benchmarks.
+**At 1.5B, both methods improve performance across the measured sampling budgets.** ES and GRPO outperform the base model at every evaluated k on all four benchmarks. We find no evidence of narrowing within this range.
 
-**At 7B, GRPO leads at small k but falls below base as k grows; ES finishes at or above base on 3 of 4.** GRPO is above base up to k=64 on AIME24 and OlympiadBench and up to k=8 on MATH500 and Minerva, then ends below base on all four. ES ends at or above base on MATH500, Minerva and OlympiadBench, and below base on AIME24 from k=128.
+**At 7B, stronger first-attempt performance does not always translate into broader coverage.** GRPO achieves the highest pass@1 on all four benchmarks, but falls below the base model on each at the largest evaluated k. ES matches or exceeds the base at the largest k on **3 out of 4 tasks**, falling below it on AIME24.
 
-**Open question.** Does RLVR ceiling narrowing appear only at larger scale? GRPO narrowed at 7B but not at 1.5B here, but the 1.5B arms may be under-trained and there is one run each, so this is untested.
+Narrowing is therefore not exclusive to GRPO in these experiments, although it appears more consistently across benchmarks for GRPO than for ES. The difference between the 1.5B and 7B results also raises a question about when narrowing emerges. With one training run per method at each size, unequal training budgets and different reward graders, we cannot isolate the effects of model size or training method.
 
 ### Moral judgement (ETHICS)
 
-We score the same six models zero-shot on the five ETHICS subsets ([Hendrycks et al.](https://arxiv.org/abs/2008.02275)), none of which any arm was trained on.
+Maths-only post-training can also affect behaviour outside maths. To examine this, we evaluate all six models on the five [ETHICS](https://arxiv.org/abs/2008.02275) subsets: commonsense, deontology, justice, virtue and utilitarianism. These tasks assess agreement with labelled judgements about moral scenarios; none was used for post-training.
 
-**Capability and moral judgement can move separately.** Neither method changed MMLU (all arms within 0.5 points of base), yet at 7B maths-only ES lowered ETHICS commonsense accuracy 63.42→57.68% (McNemar p=9e-34) while GRPO was unchanged. A post-training method can preserve or improve capability while shifting moral judgements, and a capability check alone can miss it. This is one run per method, seen at one set-up only.
+**ES reduces accuracy on some ETHICS subsets at both 1.5B and 7B.** At 1.5B, ES lowers scores on deontology, justice and virtue. At 7B, it lowers commonsense accuracy. All four declines are statistically significant after correcting for multiple comparisons.
 
-Zero-shot log-likelihood of two reply words; accuracy %. **Bold** = change vs. own base passes exact McNemar with Bonferroni correction (0.05/20).
+GRPO shows no statistically significant declines on ETHICS at either model size.
+
+These changes occur despite stable general knowledge performance: all post-trained models remain within 0.5 percentage points of their base on MMLU, with no statistically significant differences.
 
 | Subset | Chance | 1.5B Base | 1.5B ES | 1.5B GRPO | 7B Base | 7B ES | 7B GRPO |
 |---|---|---|---|---|---|---|---|
@@ -46,17 +50,17 @@ Zero-shot log-likelihood of two reply words; accuracy %. **Bold** = change vs. o
 | Virtue | 3.1 | 46.8 | **42.9** | 47.0 | 56.9 | 56.5 | 57.0 |
 | Utilitarianism | 50.0 | 51.1 | 52.5 | 52.4 | 73.5 | 72.5 | 73.7 |
 
-p-values are in the [write-up](writeup/writeup.pdf). \*Always answering "not wrong" scores 53.3%. Deontology, justice and virtue count a contrast set (4, 4, 5 items) only if every item is right; utilitarianism compares yes-vs-no log-odds across both scenario orders.
+Scores are zero-shot accuracies (%), based on the relative likelihoods of two candidate replies. **Bold** entries indicate a statistically significant change from the corresponding base model under an exact McNemar test with Bonferroni correction across 20 comparisons (p < 0.0025).
+
+Deontology, justice and virtue are scored in groups of four, four and five related items; a group counts as correct only when every item is answered correctly. Utilitarianism compares preferences across both scenario orders. \*For commonsense, always answering “not wrong” achieves 53.3%. Full p-values are reported in the [write-up](writeup/writeup.pdf).
+
+These results show that maths-only evolutionary post-training can improve mathematical performance and preserve general knowledge scores while reducing accuracy on moral judgement tasks. The declines observed with ES motivate investigating how these effects develop as evolutionary training scales up, and what they might imply for safety and alignment. The present experiments do not establish that trajectory, and ETHICS scores capture only a narrow aspect of behaviour relevant to these questions.
 
 ## Limitations
 
 - One training run per method.
 - Not compute-matched: GRPO saw 8x the data and 2x the generations; ES ran 1/10 of the recommended iterations.
 - Grader confound: GRPO was trained with the same lenient answer extraction used for eval; ES was rewarded for `\boxed{}` only. Re-scoring with eight answer graders gives the same direction at 7B.
-
-## Further work
-
-- Repeated runs per method to test whether the ethical values shift is specific to ES, whether it holds for larger models and other model families, and whether it also happens under GRPO/RL.
 
 ## Evaluation
 
