@@ -1,0 +1,14 @@
+{
+  "reference": [
+    {"idx": 0, "score": [true, false, false, false]},
+    {"idx": 1, "score": [false, false, false, false]},
+    {"idx": 2, "score": [true, true, true, true]},
+    {"idx": 3, "score": [false, false, false, false]}
+  ],
+  "candidate": [
+    {"idx": 0, "score": [false, false, false, false]},
+    {"idx": 1, "score": [true, true, false, false]},
+    {"idx": 2, "score": [true, true, true, true]},
+    {"idx": 3, "score": [false, false, false, false]}
+  ]
+}

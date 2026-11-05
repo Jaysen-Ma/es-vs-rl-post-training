@@ -18,6 +18,7 @@ Repository = "https://github.com/Jaysen-Ma/es-vs-rl-post-training"
 [project.scripts]
 es-capacity-ethics = "es_capacity.analysis.ethics_cli:main"
 es-capacity-models = "es_capacity.cli.models:main"
+es-capacity-passk = "es_capacity.cli.passk:main"
 
 [project.optional-dependencies]
 # Summaries, statistical comparisons and figures from saved evaluation outputs.

@@ -63,6 +63,8 @@ assert importlib.util.find_spec('scipy') is None
         run(cli, "--help", cwd=work)
         models_cli = bin_dir / ("es-capacity-models.exe" if sys.platform == "win32" else "es-capacity-models")
         run(models_cli, "--help", cwd=work)
+        passk_cli = bin_dir / ("es-capacity-passk.exe" if sys.platform == "win32" else "es-capacity-passk")
+        run(passk_cli, "--help", cwd=work)
         checkpoint = work / "checkpoint"
         checkpoint.mkdir()
         (checkpoint / "config.json").write_text("{}")
@@ -82,6 +84,11 @@ import scipy.stats
 for name in ('torch', 'vllm', 'lm_eval', 'datasets', 'transformers'):
     assert importlib.util.find_spec(name) is None, name
 """, cwd=work)
+        example_out = work / "passk-example"
+        run(passk_cli, "--example", "--out", example_out, "--plot", cwd=work)
+        for filename in ("synthetic_summary.json", "synthetic_passk.png"):
+            if not (example_out / filename).is_file():
+                raise RuntimeError(f"installed pass@k example did not produce {filename}")
         # Run the shipped tests and runner scripts against the installed wheel.
         # -I and an external cwd prevent imports from the development checkout.
         tests = source / "tests"

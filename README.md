@@ -73,6 +73,28 @@ uv run --locked --group analysis python scripts/plot_hero.py
 
 This installs the shared package and regenerates the pass@k figure from committed summaries. Model evaluation requires a separate GPU environment; install the shared package into an existing environment with `python -m pip install -e .`. See [Development and reproduction](DEVELOPMENT.md) for input requirements, environment boundaries and the recorded external repository revisions.
 
+To try pass@k analysis without downloading models or evaluation data:
+
+```bash
+uv run --locked --group analysis es-capacity-passk --example --out /tmp/passk-example --plot
+```
+
+This uses four synthetic questions with four correctness scores each, writing
+`synthetic_summary.json` and `synthetic_passk.png`. The example is bundled in the
+installed package; its numbers are illustrative, not study results.
+
+To analyse your own saved maths outputs from the external evaluation harness:
+
+```bash
+uv run --locked --group analysis es-capacity-passk --results-dir /path/to/run --out /path/to/summaries --label base --label trained --label rl --baseline base --plot
+```
+
+Inputs follow `RUN/LABEL/BENCHMARK/*.jsonl`. The command runs from any directory
+once installed; pass explicit paths to its inputs and outputs. Its pass@k
+estimator and JSON format are unchanged, and generation and grading continue to
+use the existing limit-of-RLVR fork. Existing `scripts/passk/analyze.py --run-tag`
+commands remain available. See [input and output details](DEVELOPMENT.md#passk-analysis).
+
 To regenerate ETHICS summaries from saved predictions, without running models:
 
 ```bash

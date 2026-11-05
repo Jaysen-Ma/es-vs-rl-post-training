@@ -1,7 +1,7 @@
 # Development and reproduction
 
 The `es_capacity` package provides the shared model registry, filesystem
-configuration and saved-result ETHICS analysis. Other analysis commands and
+configuration and saved-result pass@k/ETHICS analysis. Other analysis commands and
 model runners remain in `scripts/`. Model execution requires a separate GPU
 environment.
 
@@ -18,7 +18,7 @@ Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and use Py
 
 ```bash
 uv sync --locked --group analysis
-uv run --locked --group analysis python scripts/passk/analyze.py --help
+uv run --locked --group analysis es-capacity-passk --help
 ```
 
 `uv sync` installs `es_capacity` in editable mode, so changes under
@@ -33,9 +33,9 @@ selected dependency groups.
 
 The validated baseline is CPython 3.12 on Linux with uv 0.10.3. The declared Python
 minimum is 3.10 because the scripts use Python 3.10 syntax. Core model
-configuration and runner CLI wiring have also been checked on CPython 3.10.19,
-including the `tomli` fallback. Analysis on other Python versions and other
-platforms has not yet been validated.
+configuration and runner CLI wiring include the `tomli` fallback on Python 3.10.
+The full analysis suite and package checks run on Python 3.10 and 3.12 in CI.
+Other Python versions and platforms have not yet been validated.
 
 To deliberately update dependencies, use `uv lock --upgrade-package NAME`, repeat
 the relevant validation, and commit the lockfile change with its reason. Routine
@@ -46,7 +46,8 @@ setup should use `--locked`.
 | Task | Command | Required inputs |
 |---|---|---|
 | Paper's pass@k figure | `uv run --locked --group analysis python scripts/plot_hero.py` | The committed three-way summary JSON files |
-| pass@k summaries | `uv run --locked --group analysis python scripts/passk/analyze.py --run-tag RUN --label base --label trained --label rl --baseline base --plot` | Raw per-question evaluation JSONL files under `results/RUN/` |
+| pass@k example | `uv run --locked --group analysis es-capacity-passk --example --out /tmp/passk-example --plot` | Synthetic correctness scores bundled with the package |
+| pass@k summaries | `uv run --locked --group analysis es-capacity-passk --results-dir PATH --out OUTPUT --label base --label trained --label rl --baseline base --plot` | Scored per-question evaluation JSONL files under `PATH/LABEL/BENCHMARK/` |
 | MMLU tables | `uv run --locked --group analysis python scripts/mmlu/tables.py --sweep-root PATH` | Saved MMLU results and sample files |
 | ETHICS commonsense summary | `uv run --locked --group analysis es-capacity-ethics --results-dir PATH --subset commonsense` | `PATH/ARM/samples.jsonl` for each model arm |
 | Other four ETHICS summaries | `uv run --locked --group analysis es-capacity-ethics --results-dir PATH --subset rest` | `PATH/ARM/rest_samples.jsonl` for each model arm |
@@ -70,6 +71,78 @@ summary functions after evaluation; the scoring and CSV formats are unchanged.
 
 Checkpoint comparison (`scripts/weights/compare.py`) requires PyTorch and
 safetensors and is outside this analysis environment.
+
+## pass@k analysis
+
+`es-capacity-passk` reads the scored JSONL shards produced by the existing
+limit-of-RLVR maths evaluator. It does not generate answers or grade them again.
+The numerical functions are in `src/es_capacity/analysis/passk.py`; the installed
+command is in `src/es_capacity/cli/passk.py`.
+
+Install the analysis environment above, then run a self-contained example:
+
+```bash
+uv run --locked --group analysis es-capacity-passk --example --out /tmp/passk-example --plot
+```
+
+The bundled `src/es_capacity/examples/passk.json` contains synthetic correctness
+indicators for four questions and four attempts under the labels `reference` and
+`candidate`. It includes one question in each coverage category: solved by both,
+solved by just the reference, solved by just the candidate, and solved by neither.
+The example makes no claims about model performance and includes no benchmark
+questions or generated answers. Its summary and plot remain in the requested
+output directory after the temporary example inputs are removed.
+
+For actual scored outputs, use this layout:
+
+```text
+RUN/
+  base/math500/shard_0.jsonl
+  trained/math500/shard_0.jsonl
+  rl/math500/shard_0.jsonl
+```
+
+Every nonempty JSONL line needs an `idx` question ID and a `score` list of boolean
+correctness indicators, for example:
+
+```json
+{"idx": 0, "score": [true, false, false, true]}
+```
+
+Shard files should cover disjoint question IDs. All compared labels must cover
+the same IDs. Each label must have a positive, uniform sample count across its
+questions. The four-way breakdown additionally requires equal counts between
+each compared pair; unequal-budget pairs retain their curves and omit that
+breakdown. The existing shard-loading rules are retained in this extraction.
+
+```bash
+es-capacity-passk --results-dir /data/run --out /data/summaries --label base --label trained --label rl --baseline base --benchmark math500 --plot
+```
+
+`--results-dir` and `--out` are explicit, so installed commands work outside a
+checkout. Labels are unique directory names; `--baseline` defaults to the first
+label. Repeat `--benchmark` to select from `aime24`, `math500`, `minerva_math` and
+`olympiadbench`. Without that option the command processes the four study
+benchmarks and reports missing label directories as skipped. An explicitly
+selected missing benchmark is an error, as is a run with no available benchmarks.
+
+Outputs are `BENCHMARK_summary.json` and, with `--plot`, `BENCHMARK_passk.png`.
+Existing files of those names are replaced. The JSON schema remains unchanged:
+`baseline`, per-label `n_sampling`, `ks`, `pass_at_k`, and `four_way_breakdown`.
+Pass@k values are fractions from 0 to 1; `fractions_pct` contains percentages.
+Scoring rules, power-of-two k values and comparison guards are unchanged.
+
+The estimator matches the formula in the external
+[evaluate.py](https://github.com/Jaysen-Ma/limit-of-RLVR/blob/569825a3f8c68dc6d25415917498db634ea73bdb/math/examples/math_eval/evaluate.py#L16):
+`1 - C(n-c, k) / C(n, k)`, where `c` of `n` completions are correct. Tests compare
+against an independent exact-combination reference, including all-correct,
+all-incorrect, non-power-of-two and larger sample budgets. CI requires no external
+checkout to run these tests.
+
+The old `python scripts/passk/analyze.py --run-tag RUN --label ...` interface is a
+compatibility launcher. It still reads `results/RUN/` relative to the checkout and
+defaults to writing summaries there. It delegates to the same packaged functions;
+new code should use the installed command with explicit paths.
 
 ## Evaluation environments and study setup references
 
