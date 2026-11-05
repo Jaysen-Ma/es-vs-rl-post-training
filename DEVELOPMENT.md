@@ -171,6 +171,42 @@ For the ETHICS extraction, also compare both summary CSVs byte for byte against
 the previous implementation using the same saved samples in disposable directories.
 Previously withheld scoring and sample-matching fixes remain a separate review.
 
+## Continuous integration
+
+The [CI workflow](.github/workflows/ci.yml) runs when a pull request targeting
+`main` is opened, reopened or receives new commits, and on every push to `main`,
+including merges. Draft pull requests are included. A push to another branch
+without an open pull request does not trigger it. GitHub reports the result on
+the pull request; requiring that check before merging is a separate repository
+setting ([GitHub workflow events](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request)).
+
+CI uses Ubuntu 24.04, Python 3.12 from `.python-version`, and uv 0.10.3. It installs
+the locked analysis environment, runs the test suite and checks analysis command
+help. It then builds the source distribution and wheel, installs the wheel into
+a fresh temporary environment, and runs the tests from the source distribution
+against that installation. The package check also verifies that core command help
+works without analysis dependencies and that the analysis extra installs without
+GPU libraries. These checks use synthetic predictions and need no raw benchmark
+outputs or model checkpoints.
+
+Run the commands in **Review and validation** above, followed by the same package
+check used in CI:
+
+```bash
+uv run --locked --group analysis python scripts/check_package.py
+```
+
+The package check uses temporary build and installation directories and removes
+them on exit. Its analysis dependencies are constrained to `uv.lock`. A failure
+returns a nonzero exit code and prints the failing command. CI checks the current
+software contracts; it does not rerun model evaluation or establish the study's
+scientific conclusions.
+
+Workflow actions are pinned to commit IDs, the job has read-only repository
+permissions, and a newer commit cancels an older run for the same PR or branch.
+Update action pins and the uv version deliberately and validate the workflow when
+changing them.
+
 ## Package builds
 
 `uv build` produces a wheel and a source distribution in `dist/`, using the pinned
