@@ -1,36 +1,37 @@
 #!/bin/bash
-# Runs ONE model across all 4 benchmarks with the fixed generation settings
-# every arm in this repo shares (temperature=0.6, top_p=0.95, max_tokens=2048,
-# qwen-boxed template, seed=1), so pass@k comparisons between arms stay fair.
-# Call this once per arm (base, trained, rl, ...) under the same run_tag, then
-# analyze_passk.py compares whichever labels you point it at.
+# Evaluate one downloaded model across the four maths benchmarks, using the same
+# generation settings for all arms: temperature=0.6, top_p=0.95, max_tokens=2048,
+# qwen-boxed prompting and seed=1.
 #
 # Usage:
-#   ./run_eval.sh <model_dir_or_config_key> <label> <run_tag> [n_sampling_override]
-# e.g.
-#   ./run_eval.sh QWEN25_7B_BASE base 7b-sigma001-iter50   # looks up $QWEN25_7B_BASE from config.sh
-#   ./run_eval.sh /path/to/hf-checkpoint-iter50 trained 7b-sigma001-iter50   # absolute path, used as-is
-#   ./run_eval.sh QWEN25_7B_RL rl 7b-sigma001-iter50
-#   ./run_eval.sh QWEN25_7B_RL rl 7b-sigma001-iter50 32   # same n_sampling=32 for all 4 benchmarks
+#   ./run_eval.sh [--config FILE] MODEL_ARM LABEL [RUN_TAG] [N_SAMPLING]
+#   ./run_eval.sh --config config.toml 7B-base base my-run
+#   ./run_eval.sh --config config.toml 7B-ES trained my-run
+#   ./run_eval.sh --config config.toml 7B-RL rl my-run 32
 #
-# n_sampling_override, if given, replaces every benchmark's n_sampling below
-# (e.g. for a cheap "does it already cross at low k" check before committing
-# to the full budget). Without it, this model gets this project's standard
-# per-benchmark n_sampling (harder/smaller benchmarks get a larger k), so
-# arms evaluated separately under the same run_tag stay directly comparable.
+# Install es-capacity in the maths evaluation environment and set MATH_EVAL_DIR
+# to limit-of-RLVR/math/examples/math_eval. The optional config.sh supplies shell
+# settings. --config takes precedence over ES_CAPACITY_CONFIG. Model paths are
+# resolved locally before entering the external harness; no models are downloaded.
+# Existing exported model-path variable names and direct local paths also work.
 #
-# Needs MATH_EVAL_DIR pointing at a limit-of-RLVR checkout's
-# math/examples/math_eval/ (this repo doesn't vendor it, and its path isn't
-# assumed — copy config.example.sh to config.sh and set it there, or export
-# it yourself; on a box following docker/on_start.sh's layout it defaults to
-# $WORKSPACE/limit-of-RLVR/math/examples/math_eval).
-#
-# <model_dir_or_config_key>: each model gets its own explicit path — no
-# shared "models root" is assumed. If the argument names a variable defined
-# in config.sh (or exported), that variable's value is used as the model
-# path; otherwise the argument itself is used as the path (so an absolute
-# path always works with no config needed).
+# N_SAMPLING overrides the budget for every benchmark; otherwise the standard
+# per-benchmark budgets below apply. LABEL and RUN_TAG select results/RUN_TAG/LABEL.
 set -euo pipefail
+
+MODEL_CONFIG_ARGS=()
+if [ "${1:-}" = "--config" ]; then
+    if [ "$#" -lt 4 ]; then
+        echo "Usage: $0 [--config FILE] MODEL_ARM LABEL [RUN_TAG] [N_SAMPLING]" >&2
+        exit 2
+    fi
+    MODEL_CONFIG_ARGS=(--config "$2")
+    shift 2
+fi
+if [ "$#" -lt 2 ]; then
+    echo "Usage: $0 [--config FILE] MODEL_ARM LABEL [RUN_TAG] [N_SAMPLING]" >&2
+    exit 2
+fi
 
 MODEL_DIR=$1
 LABEL=$2
@@ -56,6 +57,10 @@ fi
 if [[ "$MODEL_DIR" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && [ -n "${!MODEL_DIR:-}" ]; then
     MODEL_DIR="${!MODEL_DIR}"
 fi
+
+# Resolve before changing directory to the external harness. All workflows use
+# the installed package's local-only resolver; this does not download models.
+MODEL_DIR=$(python -m es_capacity.cli.models path "$MODEL_DIR" "${MODEL_CONFIG_ARGS[@]}")
 
 PROMPT_TYPE="qwen-boxed"
 TEMPERATURE=0.6
@@ -97,4 +102,4 @@ done
 
 echo
 echo "All benchmarks complete for $LABEL. Outputs in ${LABEL_OUT}/{aime24,math500,minerva_math,olympiadbench}/"
-echo "Analyze with: python ${SCRIPT_DIR}/analyze_passk.py --run-tag ${RUN_TAG} --label ... --baseline ... --plot"
+echo "Analyze with: python ${SCRIPT_DIR}/analyze.py --run-tag ${RUN_TAG} --label ... --baseline ... --plot"

@@ -2,8 +2,8 @@
 
 The `es_capacity` package provides the shared model registry, filesystem
 configuration and saved-result ETHICS analysis. Other analysis commands and
-model runners remain in `scripts/`. Model execution and ES training require
-separate environments.
+model runners remain in `scripts/`. Model execution requires a separate GPU
+environment.
 
 ## Analysis environment
 
@@ -32,8 +32,10 @@ Use a separate virtual environment from any existing GPU training environment;
 selected dependency groups.
 
 The validated baseline is CPython 3.12 on Linux with uv 0.10.3. The declared Python
-minimum is 3.10 because the scripts use Python 3.10 syntax. Other Python versions
-and platforms have not yet been validated.
+minimum is 3.10 because the scripts use Python 3.10 syntax. Core model
+configuration and runner CLI wiring have also been checked on CPython 3.10.19,
+including the `tomli` fallback. Analysis on other Python versions and other
+platforms has not yet been validated.
 
 To deliberately update dependencies, use `uv lock --upgrade-package NAME`, repeat
 the relevant validation, and commit the lockfile change with its reason. Routine
@@ -69,7 +71,7 @@ summary functions after evaluation; the scoring and CSV formats are unchanged.
 Checkpoint comparison (`scripts/weights/compare.py`) requires PyTorch and
 safetensors and is outside this analysis environment.
 
-## Model execution and external repositories
+## Evaluation environments and study setup references
 
 `external-repositories.toml` records the exact local checkout revisions inspected
 on 2026-11-05. These are setup reference points, not evidence that the historical
@@ -77,7 +79,9 @@ experiments ran at precisely those commits. The experiment records do not yet
 establish that provenance. Branch names are hints; use the recorded commit IDs
 when reconstructing these checkouts.
 
-The external repositories currently declare incompatible dependency versions:
+The training repository is recorded as study background; evaluation users do not
+need to install or run it. The external repositories declare incompatible
+dependency versions:
 
 | Workflow | External declaration at the recorded revision |
 |---|---|
@@ -92,8 +96,8 @@ paper. A follow-up GPU validation should record Python, package versions, CUDA
 and driver versions, model and dataset revisions, repository commits and run
 settings together.
 
-Use separate environments for training and maths evaluation. The local MMLU,
-GPQA and ETHICS runners additionally depend on the evaluation harness (`lm_eval`),
+Maths evaluation uses the external evaluation environment. The local MMLU,
+GPQA and ETHICS runners depend on the evaluation harness (`lm_eval`),
 Hugging Face Datasets and vLLM. They are not covered by `uv.lock` yet. Setup for
 those workflows must be validated on suitable hardware before it is described
 as reproducible.
@@ -101,44 +105,88 @@ as reproducible.
 Install the shared package into an existing GPU environment with:
 
 ```bash
-python -m pip install --no-deps -e .
+python -m pip install -e .
 ```
 
-The core installation has no mandatory third-party dependencies. This command
-adds shared configuration and analysis code without installing or upgrading the
-GPU runtime. ETHICS statistical summaries still require SciPy in that environment.
-Keep using its interpreter for `python scripts/...` commands.
+The core installation has no third-party dependencies on Python 3.11 or newer;
+Python 3.10 additionally installs `tomli` to read TOML configuration. This command
+adds the shared package without selecting the analysis extra or GPU runtime.
+ETHICS statistical summaries still require SciPy in that environment. Keep using
+its interpreter for `python scripts/...` commands. Users evaluate downloaded
+checkpoints; no training step is required.
 
 ## Model and data paths
 
 The registry in `src/es_capacity/models.py` defines the same six model arms used
-in saved outputs. MMLU, GPQA, ETHICS and checkpoint analysis share these definitions.
-The existing `RL` labels are retained for compatibility.
+in saved outputs; `RL` denotes the GRPO checkpoints. The README links to all six
+checkpoint repositories. Users download checkpoint files themselves and provide
+local paths. MMLU, GPQA, ETHICS, maths evaluation and checkpoint analysis share the
+same resolver.
 
-- `MODELS_DIR` selects the local checkpoint mirror; the default is `~/models`.
-  Evaluation runners use a checkpoint under that directory if its `config.json`
-  exists, and otherwise use its Hugging Face model ID. The previous basename
-  matching rule is retained for custom IDs and paths supplied through `--arms`.
-- Checkpoint analysis requires local files and reports a missing checkpoint
-  rather than downloading one.
-- `ETHICS_DATA_DIR` selects the unpacked directory containing `deontology/`,
-  `justice/`, `virtue/` and `utilitarianism/`. The old `/tmp/ethics/ethics` default
-  is retained. `scripts/ethics/run_rest.py --data-dir PATH` takes precedence and
-  is forwarded to worker processes.
+Copy `config.example.toml` to `config.toml` and edit the `[models]` table. The six
+paths are independent; directories can have any names. Absolute paths and `~`
+are supported. Relative paths are anchored to the configuration file's directory,
+not the shell's current directory. Shell variables such as `$HOME` are not
+expanded inside TOML strings. `config.toml` is ignored by Git.
 
-These environment variables are read when paths are requested. For example:
-
-```bash
-export MODELS_DIR=/path/to/models
-export ETHICS_DATA_DIR=/path/to/ethics/ethics
-python scripts/ethics/run_rest.py --arms 7B-base --data-dir /another/ethics/ethics
+```toml
+[models]
+"7B-base" = "/data/checkpoints/base"
+"7B-ES" = "/another/disk/es-model"
+"7B-RL" = "../downloaded-checkpoints/grpo"
 ```
 
-The Python scripts do not automatically source `config.sh`. Export variables in
-the shell or explicitly source the file. The mathematical harness remains a shell
-wrapper: copy `config.example.sh` to `config.sh` and set `MATH_EVAL_DIR` and its
-per-model variables as before. Output-directory defaults are unchanged in this
-step; the shared package does not infer a repository root from its installation.
+You may configure a subset and select it with `--arms`. Commands without an arms
+selection retain their existing defaults, which can require additional entries.
+Check paths before starting an evaluation:
+
+```bash
+es-capacity-models check --config config.toml --arms 7B-base 7B-ES 7B-RL
+es-capacity-models path 7B-ES --config config.toml
+python scripts/mmlu/run.py --config config.toml --arms 7B-base 7B-ES 7B-RL
+```
+
+`check` reports every selected path as `OK` or `MISSING`. Missing checkpoint files
+return status 1; invalid configuration returns status 2. `path` prints one
+validated absolute checkpoint path, making the same resolution available to the
+maths shell wrapper. Neither command loads weights or GPU libraries. A valid
+local directory must contain `config.json`; these checks do not establish that
+all weight shards/tokenizer files are complete or usable by the model runtime.
+
+Configuration selection is explicit:
+
+1. `--config FILE` takes precedence over `ES_CAPACITY_CONFIG`.
+2. `ES_CAPACITY_CONFIG` can select a file for every workflow. Use an absolute path
+   when running commands from different directories.
+3. If neither is set, the previous local-mirror convention under `MODELS_DIR`
+   (default `~/models`) remains available. Directory basenames follow the model
+   IDs in the registry.
+
+When a file is selected, a missing arm entry is an error. No local path falls
+back to a Hugging Face model ID. Parent evaluation processes check all selected
+models before dataset preparation and pass the selected config file to workers.
+Existing scripts that relied on automatic model downloads must now download the
+models themselves and configure their paths.
+
+Maths evaluation uses the same config and requires this package installed in its
+own evaluation environment:
+
+```bash
+export MATH_EVAL_DIR=/path/to/limit-of-RLVR/math/examples/math_eval
+bash scripts/passk/run_eval.sh --config config.toml 7B-base base my-run
+```
+
+The optional `config.sh` still supplies shell settings to the maths wrapper.
+`config.example.sh` now illustrates the external harness path and config-file
+selection; per-model paths belong in TOML. Existing exported model-path variables
+and direct local paths remain accepted by the maths wrapper. Its argument is
+resolved and checked before it changes directory into the external harness.
+Python scripts do not source shell configuration files.
+
+`ETHICS_DATA_DIR` selects the unpacked dataset containing `deontology/`, `justice/`,
+`virtue/` and `utilitarianism/`. `scripts/ethics/run_rest.py --data-dir PATH` takes
+precedence; the `/tmp/ethics/ethics` default is retained. Output-directory defaults
+are unchanged. Analysis of saved outputs does not require model configuration.
 
 The write-up's grader-audit workflow is currently excluded from the published
 repository. Making that workflow reproducible is a separate follow-up; the packaging work does not add the ignored local scripts or raw benchmark text.
@@ -156,6 +204,7 @@ uv lock --check
 uv sync --locked --group analysis
 uv run --locked --group analysis python -m unittest discover -s tests -v
 uv run --locked --group analysis es-capacity-ethics --help
+uv run --locked --group analysis es-capacity-models --help
 uv run --locked --group analysis python scripts/passk/analyze.py --help
 uv run --locked --group analysis python scripts/mmlu/tables.py --help
 uv run --locked --group analysis python scripts/gpqa/analyze.py --help

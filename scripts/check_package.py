@@ -57,6 +57,8 @@ assert Path(es_capacity.__file__).is_relative_to(Path(sys.prefix))
 assert importlib.util.find_spec('scipy') is None
 """, cwd=work)
         run(cli, "--help", cwd=work)
+        models_cli = bin_dir / ("es-capacity-models.exe" if sys.platform == "win32" else "es-capacity-models")
+        run(models_cli, "--help", cwd=work)
 
         # Exercise the wheel's extra while retaining the lockfile's versions.
         run(

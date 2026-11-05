@@ -50,6 +50,8 @@ from es_capacity.analysis.ethics_rest import (  # noqa: E402
     DEFAULT_ARMS, TASKS, _mcnemar, _units, load_task, summarize,
 )
 
+from es_capacity.cli.models import add_config_argument, validate_model_args  # noqa: E402
+
 from es_capacity.models import resolve_model as resolve  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -165,6 +167,8 @@ def prepare(out_root: Path, data_dir: Path | None = None) -> Path:
 
 
 def run_one_arm(arm: str, out_root: Path, task_dir: Path, args) -> None:
+    path = resolve(arm, config=args.config)
+
     import datasets
 
     datasets.disable_caching()
@@ -173,7 +177,6 @@ def run_one_arm(arm: str, out_root: Path, task_dir: Path, args) -> None:
     from lm_eval.models.vllm_causallms import VLLM
     from lm_eval.tasks import TaskManager
 
-    path = resolve(arm)
     print(f"[{arm}] loading {path}", flush=True)
     t0 = time.time()
     lm = VLLM(
@@ -250,7 +253,9 @@ def main() -> None:
     ap.add_argument("--batch-size", type=int, default=1024)
     ap.add_argument("--limit", type=float, default=None)
     ap.add_argument("--_arm", default=None, help=argparse.SUPPRESS)
+    add_config_argument(ap)
     args = ap.parse_args()
+    validate_model_args(ap, args)
 
     if not args.data_dir.is_dir():
         raise SystemExit(f"missing {args.data_dir}; set --data-dir or ETHICS_DATA_DIR "
@@ -278,6 +283,8 @@ def main() -> None:
         ]
         if args.limit is not None:
             cmd += ["--limit", str(args.limit)]
+        if args.config is not None:
+            cmd += ["--config", str(args.config)]
         if subprocess.run(cmd).returncode != 0:
             print(f"!! {arm} FAILED", flush=True)
             failed.append(arm)
