@@ -3,7 +3,7 @@
 The `es_capacity` package provides the shared model registry, filesystem
 configuration and saved-result analysis for pass@k, ETHICS, MMLU, GPQA and weight
 distributions. MMLU, GPQA and all ETHICS model runners are under `evaluation/`;
-checkpoint comparison remains in `scripts/`. Model execution requires
+checkpoint comparison is packaged separately from saved-result plotting. Model execution requires
 a separate GPU environment.
 
 ## Analysis environment
@@ -303,6 +303,40 @@ The old `python scripts/weights/plot.py --scale 7B --dir PATH` launcher still
 writes to `PATH/figures`; its default input root remains `results/weights`.
 Generating new comparison CSVs with `scripts/weights/compare.py` still requires
 downloaded checkpoints and its separate dependencies.
+
+## Checkpoint comparison
+
+`es-capacity-compare-weights` compares downloaded SafeTensors checkpoints on the
+CPU and writes the inputs for weight-distribution plotting:
+
+```bash
+es-capacity-compare-weights --config /data/models.toml --scale 7B --arms ES RL --out /data/weight-comparisons
+es-capacity-weights --scale 7B --results-dir /data/weight-comparisons --out /data/weight-figures
+```
+
+Install this package into an environment with PyTorch and SafeTensors. These
+libraries are outside the locked analysis environment; command help and model
+preflight do not import them. Model paths use the shared TOML configuration.
+The installed command requires `--out`; the legacy `scripts/weights/compare.py`
+launcher retains its `results/weights` default.
+
+The algorithm in `src/es_capacity/analysis/weight_comparison.py` streams the same
+tensor chunks in two passes, retaining raw units, shared base/trained histogram
+grids, underflow/overflow counts and separate excluded/tied-head groups. It writes
+`SCALE-ARM/stats.csv`, `hist.csv` and `per_tensor.csv`, replacing those files on
+reruns. No inference or training is involved.
+
+Tiny CPU checkpoints were checked with Python 3.12.3, PyTorch 2.11.0+cu130 and
+SafeTensors 0.8.0 on Linux aarch64. All three CSVs match the previous implementation
+byte for byte. The optional numerical tests run with those libraries installed:
+
+```bash
+python -m unittest discover -s tests -p test_checkpoint_comparison.py -v
+```
+
+The two tensor tests are skipped in the lightweight CI environment; CLI/config
+checks still run there. Full-size checkpoint comparison was not repeated during
+this migration.
 
 ## Evaluation environments and study setup references
 

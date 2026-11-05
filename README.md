@@ -178,7 +178,7 @@ es-capacity-evaluate mmlu --config config.toml --arms 7B-base 7B-ES 7B-RL --out 
 es-capacity-evaluate ethics --subset commonsense --config config.toml --arms 7B-base 7B-ES 7B-RL --out /path/to/ethics-run
 es-capacity-evaluate ethics --subset rest --config config.toml --arms 7B-base 7B-ES 7B-RL --data-dir /path/to/ethics/ethics --out /path/to/ethics-run
 es-capacity-evaluate gpqa --config config.toml --arms 7B-base 7B-ES 7B-RL --out /path/to/gpqa-sweep
-python scripts/weights/compare.py --config config.toml --scale 7B
+es-capacity-compare-weights --config config.toml --scale 7B --out /path/to/weight-comparisons
 ```
 
 MMLU evaluation runs one model per worker process; use `es-capacity-mmlu` to

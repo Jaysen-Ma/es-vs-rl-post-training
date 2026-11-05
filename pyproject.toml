@@ -23,6 +23,7 @@ es-capacity-mmlu = "es_capacity.cli.mmlu:main"
 es-capacity-gpqa = "es_capacity.cli.gpqa:main"
 es-capacity-weights = "es_capacity.cli.weights:main"
 es-capacity-evaluate = "es_capacity.cli.evaluate:main"
+es-capacity-compare-weights = "es_capacity.cli.compare_weights:main"
 
 [project.optional-dependencies]
 # Summaries, statistical comparisons and figures from saved evaluation outputs.

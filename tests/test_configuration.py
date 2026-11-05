@@ -301,7 +301,7 @@ class RunnerConfigurationTests(unittest.TestCase):
         config = model_config(self.root / "weight-models.toml", paths)
         with (
             patch.object(sys, "argv", ["compare.py", "--scale", "7B", "--config", str(config)]),
-            patch.object(runner, "compare") as compare,
+            patch.object(sys.modules[runner.compare.__module__], "compare") as compare,
             contextlib.redirect_stdout(io.StringIO()),
         ):
             runner.main()

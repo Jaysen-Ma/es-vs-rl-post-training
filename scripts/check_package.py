@@ -103,6 +103,8 @@ assert importlib.util.find_spec('scipy') is None
         run(evaluate_cli, "mmlu", "--help", cwd=work)
         run(evaluate_cli, "gpqa", "--help", cwd=work)
         run(evaluate_cli, "ethics", "--help", cwd=work)
+        compare_cli = bin_dir / ("es-capacity-compare-weights.exe" if sys.platform == "win32" else "es-capacity-compare-weights")
+        run(compare_cli, "--help", cwd=work)
         run(python, "-I", "-c", """
 import json
 from pathlib import Path

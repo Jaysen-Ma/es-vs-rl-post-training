@@ -6,6 +6,9 @@ An entry here can describe a release still being prepared.
 
 ## Unreleased
 
+- Package CPU checkpoint comparison with `es-capacity-compare-weights`, explicit
+  output paths and deferred PyTorch/SafeTensors imports. Keep the existing script
+  launcher, numerical method and three CSV formats.
 - Package the remaining four ETHICS subsets under `es-capacity-evaluate ethics
   --subset rest`, preserving contrast-group scoring and the legacy launcher.
   Required CSVs are checked before preparation; generated YAML quotes data paths.
