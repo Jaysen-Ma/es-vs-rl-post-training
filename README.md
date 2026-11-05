@@ -119,6 +119,16 @@ uv run --locked --group analysis es-capacity-mmlu --results-dir /path/to/mmlu-ru
 This writes `scores.csv` in the output directory and prints a Markdown table.
 See [MMLU input requirements](DEVELOPMENT.md#mmlu-analysis).
 
+For GPQA seed-sweep summaries and Markdown tables:
+
+```bash
+uv run --locked --group analysis es-capacity-gpqa summarize --results-dir /path/to/gpqa-sweep --out /path/to/gpqa-summary --pair 7B-ES:7B-base
+uv run --locked --group analysis es-capacity-gpqa tables --results-dir /path/to/gpqa-summary
+```
+
+Use `es-capacity-gpqa check --results-dir PATH` to validate a sweep without writing
+outputs. See [GPQA input and output details](DEVELOPMENT.md#gpqa-analysis).
+
 ### Evaluate downloaded models
 
 You do not need to train models to use this repository. If you already have the

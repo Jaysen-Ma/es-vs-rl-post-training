@@ -1,7 +1,7 @@
 # Development and reproduction
 
 The `es_capacity` package provides the shared model registry, filesystem
-configuration and saved-result pass@k/ETHICS/MMLU analysis. Other analysis commands and
+configuration and saved-result pass@k, ETHICS, MMLU and GPQA analysis. Other analysis commands and
 model runners remain in `scripts/`. Model execution requires a separate GPU
 environment.
 
@@ -51,8 +51,8 @@ setup should use `--locked`.
 | MMLU tables | `uv run --locked --group analysis es-capacity-mmlu --results-dir PATH --out OUTPUT` | `PATH/ARM/results.json` and `PATH/ARM/samples.jsonl` for each arm |
 | ETHICS commonsense summary | `uv run --locked --group analysis es-capacity-ethics --results-dir PATH --subset commonsense` | `PATH/ARM/samples.jsonl` for each model arm |
 | Other four ETHICS summaries | `uv run --locked --group analysis es-capacity-ethics --results-dir PATH --subset rest` | `PATH/ARM/rest_samples.jsonl` for each model arm |
-| GPQA summaries | `uv run --locked --group analysis python scripts/gpqa/analyze.py --sweep-root PATH --out OUTPUT` | Saved GPQA seed-sweep outputs |
-| GPQA tables | `uv run --locked --group analysis python scripts/gpqa/tables.py --dir PATH` | Reduced GPQA CSV files |
+| GPQA summaries | `uv run --locked --group analysis es-capacity-gpqa summarize --results-dir PATH --out OUTPUT --pair 7B-ES:7B-base` | Saved GPQA seed-sweep results and samples |
+| GPQA tables | `uv run --locked --group analysis es-capacity-gpqa tables --results-dir PATH` | Reduced GPQA CSV files |
 | Weight-change plots | `uv run --locked --group analysis python scripts/weights/plot.py --scale 7B --dir PATH` | Weight-statistics and histogram CSV files |
 
 The figure command overwrites `writeup/figures/hero_passk.png` and
@@ -187,6 +187,64 @@ to the packaged command and still writes `PATH/scores.csv`. Without that argumen
 it uses `results/mmlu_results` relative to the current directory. New commands
 should use the installed entry point with explicit input/output paths. Saved MMLU
 inputs are excluded from Git; CI exercises synthetic results and samples.
+
+## GPQA analysis
+
+`es-capacity-gpqa` analyses the saved seed sweeps from `scripts/gpqa/run_sweep.py`.
+It uses deterministic likelihood scores already in those files; it does not run
+models or generate answers. The functions are in `src/es_capacity/analysis/gpqa.py`
+and the command is in `src/es_capacity/cli/gpqa.py`.
+
+```bash
+es-capacity-gpqa check --results-dir /data/gpqa-sweep
+es-capacity-gpqa summarize --results-dir /data/gpqa-sweep --out /data/gpqa-summary --pair 7B-ES:7B-base --pair 7B-RL:7B-base
+es-capacity-gpqa tables --results-dir /data/gpqa-summary
+```
+
+Inputs follow `SWEEP/seedN/ARM/`, including any nested harness output directories.
+For each seed/arm the loader selects the last `results_*.json` path in lexical
+order, as the existing analyzer does, then requires the matching
+`samples_gpqa_diamond_zeroshot_TIMESTAMP.jsonl` beside it. It rejects missing,
+truncated or duplicate sample records. Results supply `results` and `n-samples`
+for `gpqa_diamond_zeroshot`, including `acc,none`, `acc_stderr,none` and the effective
+count, plus `config.model_args.pretrained`. Each sample supplies `doc_id`, `acc`,
+`doc_hash` and four likelihoods in `filtered_resps`.
+
+Every seed must contain the same model arms and question IDs, with nonempty
+samples and question hashes. Within a seed, arms must have identical question
+hashes, so their paired comparisons refer to the same shuffled questions. Across
+seeds, the hash vectors must differ. These checks detect repeated permutations;
+they do not establish statistical independence of the seeds. `check` writes
+nothing and returns status 1 for an invalid sweep. Missing files, malformed input
+and invalid arguments return status 2.
+
+`summarize` validates the inputs and computes all tables before creating `--out`.
+It writes four CSVs, replacing files of those names:
+
+- `scores.csv`: seed/arm accuracy, counts, standard error and model path.
+- `scores_summary.csv`: each arm's mean, standard deviation, minimum and maximum.
+- `per_question.csv`: how many seeds each arm answered each question correctly.
+- `position_bias.csv`: pooled choice-position frequencies across seeds.
+
+Repeat `--pair ARM:BASELINE` to add `mcnemar.csv` (per-seed exact paired tests) and
+`pairs_summary.csv` (accuracy deltas and the existing per-question Wilcoxon test).
+Pairs must name arms in the sweep. With no pairs, those two generated files are
+removed from the output directory if left by an earlier paired run; unrelated
+files remain. Use separate input and output directories to keep summaries apart
+from raw evaluations. SciPy is required when computing nonzero Wilcoxon contrasts;
+missing SciPy produces installation instructions rather than a `nan` report.
+
+The statistical calculations, CSV schemas, rounding and study table formatting
+are preserved. `tables` prints Markdown from the reduced CSV directory and needs
+no raw samples. It supports summaries without pair files and includes additional
+arm names after the study's six arms. Raw benchmark text and saved runs are
+excluded from Git; the tests use synthetic scores, hashes and likelihoods.
+
+The old `scripts/gpqa/analyze.py --sweep-root PATH --out OUTPUT --pair ARM:BASELINE`
+and `--check` forms delegate to the installed command. The old
+`scripts/gpqa/tables.py --dir PATH` launcher remains available, with its existing
+`results/gpqa` default. New commands should use the installed entry point with
+explicit paths. None of these commands requires model configuration.
 
 ## Evaluation environments and study setup references
 
@@ -325,6 +383,7 @@ uv run --locked --group analysis python -m unittest discover -s tests -v
 uv run --locked --group analysis es-capacity-ethics --help
 uv run --locked --group analysis es-capacity-models --help
 uv run --locked --group analysis es-capacity-mmlu --help
+uv run --locked --group analysis es-capacity-gpqa --help
 uv run --locked --group analysis python scripts/passk/analyze.py --help
 uv run --locked --group analysis python scripts/mmlu/tables.py --help
 uv run --locked --group analysis python scripts/gpqa/analyze.py --help

@@ -6,6 +6,12 @@ An entry here can describe a release still being prepared.
 
 ## Unreleased
 
+- Package GPQA seed-sweep summaries and Markdown tables under
+  `es-capacity-gpqa check`, `summarize` and `tables`, retaining the existing script
+  launchers. Valid study inputs retain their CSV and table outputs.
+- Check complete GPQA seed/arm/question coverage and nonempty hashes before
+  summaries. Invalid pairs and missing SciPy fail clearly. Unpaired reruns remove
+  stale generated pair reports from their output directory.
 - Package saved-result MMLU analysis with `es-capacity-mmlu`, explicit input/output
   directories and a compatibility launcher for `scripts/mmlu/tables.py`.
 - Reject duplicate MMLU sample keys and mismatched question sets before paired

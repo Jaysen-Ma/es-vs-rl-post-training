@@ -94,6 +94,8 @@ assert importlib.util.find_spec('scipy') is None
         run(passk_cli, "--help", cwd=work)
         mmlu_cli = bin_dir / ("es-capacity-mmlu.exe" if sys.platform == "win32" else "es-capacity-mmlu")
         run(mmlu_cli, "--help", cwd=work)
+        gpqa_cli = bin_dir / ("es-capacity-gpqa.exe" if sys.platform == "win32" else "es-capacity-gpqa")
+        run(gpqa_cli, "--help", cwd=work)
         checkpoint = work / "checkpoint"
         checkpoint.mkdir()
         (checkpoint / "config.json").write_text("{}")
