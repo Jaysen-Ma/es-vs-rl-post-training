@@ -64,6 +64,25 @@ These results show that maths-only evolutionary post-training can improve mathem
 
 ## Evaluation
 
+For analysis of saved outputs, install [uv](https://docs.astral.sh/uv/getting-started/installation/) and use the locked Python environment:
+
+```bash
+uv sync --locked --group analysis
+uv run --locked --group analysis python scripts/plot_hero.py
+```
+
+This installs the shared package and regenerates the pass@k figure from committed summaries. Model evaluation and training require separate GPU environments; install the shared package into an existing environment with `python -m pip install --no-deps -e .`. See [Development and reproduction](DEVELOPMENT.md) for input requirements, environment boundaries and the recorded external repository revisions.
+
+To regenerate ETHICS summaries from saved predictions, without running models:
+
+```bash
+uv run --locked --group analysis es-capacity-ethics --results-dir results/ethics_results --subset commonsense
+uv run --locked --group analysis es-capacity-ethics --results-dir results/ethics_results --subset rest
+```
+
+These commands require the raw per-arm sample files, which are excluded from Git,
+and replace the corresponding CSV summary in the supplied results directory.
+
 ```bash
 cp config.example.sh config.sh   # fill in MATH_EVAL_DIR and model paths
 scripts/passk/run_eval.sh QWEN25_7B_BASE base my-run   # pass@k (needs Jaysen-Ma/limit-of-RLVR, branch fix/math-equal-timeout-bypass)

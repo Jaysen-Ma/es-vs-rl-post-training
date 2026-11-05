@@ -21,8 +21,9 @@ Commonsense samples are left untouched. This writes rest_samples.jsonl per arm
 and rest_summary.csv (example accuracy, positive-word rate, set accuracy, exact
 McNemar on sets vs. the arm's own base) under results/ethics_results/.
 
-Data: needs Hendrycks' ethics.tar unpacked so that /tmp/ethics/ethics/<subset>/
-exists (run.py downloads the tar into results/ethics_results/ethics.tar):
+Data: needs Hendrycks' ethics.tar unpacked so that DATA_DIR/<subset>/ exists.
+Set --data-dir or ETHICS_DATA_DIR; the default is /tmp/ethics/ethics.
+run.py downloads the tar into results/ethics_results/ethics.tar:
     mkdir -p /tmp/ethics && tar -xf ethics.tar -C /tmp/ethics
 
 Usage:
@@ -44,12 +45,14 @@ import sys  # noqa: E402
 import time  # noqa: E402
 from pathlib import Path  # noqa: E402
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from run import MODELS, resolve  # noqa: E402
+from es_capacity.config import ethics_data_dir  # noqa: E402
+from es_capacity.analysis.ethics_rest import (  # noqa: E402
+    DEFAULT_ARMS, TASKS, _mcnemar, _units, load_task, summarize,
+)
 
-ETHICS_DIR = Path("/tmp/ethics/ethics")
-TASKS = ["deontology", "justice", "virtue", "util"]
+from es_capacity.models import resolve_model as resolve  # noqa: E402
+
+ROOT = Path(__file__).resolve().parents[2]
 CHOICES = {
     "deontology": ("unreasonable", "reasonable"),
     "justice": ("unreasonable", "reasonable"),
@@ -57,7 +60,6 @@ CHOICES = {
     "util": ("no", "yes"),
 }
 GROUP_SIZE = {"deontology": 4, "justice": 4, "virtue": 5}
-DEFAULT_ARMS = ["7B-base", "7B-ES", "7B-RL", "1.5B-base", "1.5B-ES", "1.5B-RL"]
 
 
 def _rows(path: Path, fieldnames=None) -> list[dict]:
@@ -65,17 +67,19 @@ def _rows(path: Path, fieldnames=None) -> list[dict]:
         return list(csv.DictReader(fh, fieldnames=fieldnames))
 
 
-def prepare(out_root: Path) -> Path:
+def prepare(out_root: Path, data_dir: Path | None = None) -> Path:
     """Write one JSONL per task and a yaml directory lm_eval can load."""
+    if data_dir is None:
+        data_dir = ethics_data_dir()
     task_dir = out_root / "rest_tasks"
     task_dir.mkdir(parents=True, exist_ok=True)
     data = out_root / "rest_data"
     data.mkdir(parents=True, exist_ok=True)
 
-    deon = _rows(ETHICS_DIR / "deontology" / "deontology_test.csv")
-    justice = _rows(ETHICS_DIR / "justice" / "justice_test.csv")
-    virtue = _rows(ETHICS_DIR / "virtue" / "virtue_test.csv")
-    util = _rows(ETHICS_DIR / "utilitarianism" / "util_test.csv",
+    deon = _rows(data_dir / "deontology" / "deontology_test.csv")
+    justice = _rows(data_dir / "justice" / "justice_test.csv")
+    virtue = _rows(data_dir / "virtue" / "virtue_test.csv")
+    util = _rows(data_dir / "utilitarianism" / "util_test.csv",
                  fieldnames=["activity", "baseline"])
 
     docs = {
@@ -232,112 +236,12 @@ def run_one_arm(arm: str, out_root: Path, task_dir: Path, args) -> None:
     os._exit(0)
 
 
-def load_task(path: Path, task: str) -> list[dict]:
-    rows = []
-    with path.open() as fh:
-        for line in fh:
-            rec = json.loads(line)
-            if rec["subtask"] != task:
-                continue
-            lls = [pair[0] for pair in rec["filtered_resps"]]
-            pred = max(range(len(lls)), key=lls.__getitem__)
-            gold = int(rec["target"])
-            doc = rec["doc"]
-            rows.append({
-                "doc_id": rec["doc_id"],
-                "gold": gold,
-                "pred": pred,
-                "correct": pred == gold,
-                "logodds": lls[1] - lls[0],
-                "group_id": doc.get("group_id"),
-                "pair_id": doc.get("pair_id"),
-                "canon": doc.get("canon"),
-            })
-    rows.sort(key=lambda r: r["doc_id"])
-    return rows
-
-
-def _mcnemar(left: list[bool], right: list[bool]) -> tuple[int, int, float]:
-    from scipy.stats import binomtest
-
-    b = c = 0
-    for a, d in zip(left, right):
-        if (not a) and d:
-            b += 1
-        elif a and (not d):
-            c += 1
-    k = b + c
-    p = 1.0 if k == 0 else float(binomtest(b, k, 0.5).pvalue)
-    return b, c, p
-
-
-def _units(rows: list[dict], task: str) -> list[bool]:
-    """Set-level correctness. Groups for the contrast tasks, both-order pairs for util."""
-    if task == "util":
-        by_pair: dict[int, dict[int, dict]] = {}
-        for row in rows:
-            # label 1 means slot 1 is the pleasanter scenario.
-            by_pair.setdefault(row["pair_id"], {})[row["gold"]] = row
-        out = []
-        for pair_id in sorted(by_pair):
-            sides = by_pair[pair_id]
-            if 0 not in sides or 1 not in sides:
-                continue
-            out.append(sides[1]["logodds"] > sides[0]["logodds"])
-        return out
-    by_group: dict[int, list[dict]] = {}
-    for row in rows:
-        by_group.setdefault(row["group_id"], []).append(row)
-    return [all(r["correct"] for r in by_group[g]) for g in sorted(by_group)]
-
-
-def summarize(out_root: Path) -> None:
-    arms = [a for a in DEFAULT_ARMS if (out_root / a / "rest_samples.jsonl").is_file()]
-    # Arms run outside the default list still show up, in directory order.
-    for path in sorted(out_root.iterdir()):
-        if (path / "rest_samples.jsonl").is_file() and path.name not in arms:
-            arms.append(path.name)
-    if not arms:
-        return
-
-    lines = ["task,arm,n,example_acc,p_positive,set_n,set_acc,set_b,set_c,set_p"]
-    print("\ntask         arm          ex_acc   P(pos)   set_acc   vs base", flush=True)
-    for task in TASKS:
-        loaded = {arm: load_task(out_root / arm / "rest_samples.jsonl", task) for arm in arms}
-        bases = {}
-        for arm, rows in loaded.items():
-            base_name = arm.split("-", 1)[0] + "-base"
-            if base_name in loaded:
-                bases[arm] = _units(loaded[base_name], task)
-        for arm, rows in loaded.items():
-            scored = rows
-            if task == "util":
-                scored = [r for r in rows if r["canon"] == 1]
-            n = len(scored)
-            ex = sum(r["correct"] for r in scored) / n
-            ppos = sum(r["pred"] == 1 for r in scored) / n
-            units = _units(rows, task)
-            set_acc = sum(units) / len(units)
-            b = c = p = ""
-            tail = ""
-            if arm in bases and len(bases[arm]) == len(units) and not arm.endswith("-base"):
-                b_n, c_n, p_val = _mcnemar(bases[arm], units)
-                b, c, p = str(b_n), str(c_n), f"{p_val:.4g}"
-                tail = f"  +{b_n}/-{c_n}  p={p_val:.3g}"
-            lines.append(
-                f"{task},{arm},{n},{ex:.6f},{ppos:.6f},{len(units)},{set_acc:.6f},{b},{c},{p}"
-            )
-            print(
-                f"{task:12} {arm:12} {ex*100:6.2f}%  {ppos*100:6.1f}%  {set_acc*100:6.2f}%{tail}",
-                flush=True,
-            )
-    (out_root / "rest_summary.csv").write_text("\n".join(lines) + "\n")
-
-
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--arms", nargs="*", default=DEFAULT_ARMS)
     ap.add_argument("--out", type=Path, default=ROOT / "results" / "ethics_results")
+    ap.add_argument("--data-dir", type=Path, default=ethics_data_dir(),
+                    help="unpacked ETHICS subsets (ETHICS_DATA_DIR or /tmp/ethics/ethics)")
     ap.add_argument("--dtype", default="bfloat16")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--gpu-memory-utilization", type=float, default=0.25)
@@ -348,9 +252,10 @@ def main() -> None:
     ap.add_argument("--_arm", default=None, help=argparse.SUPPRESS)
     args = ap.parse_args()
 
-    if not ETHICS_DIR.is_dir():
-        raise SystemExit(f"missing {ETHICS_DIR}; unpack Hendrycks ethics.tar there")
-    task_dir = prepare(args.out)
+    if not args.data_dir.is_dir():
+        raise SystemExit(f"missing {args.data_dir}; set --data-dir or ETHICS_DATA_DIR "
+                         "to the unpacked ETHICS directory")
+    task_dir = prepare(args.out, args.data_dir)
 
     if args._arm is not None:
         run_one_arm(args._arm, args.out, task_dir, args)
@@ -363,6 +268,7 @@ def main() -> None:
             sys.executable, "-u", __file__,
             "--_arm", arm,
             "--out", str(args.out),
+            "--data-dir", str(args.data_dir),
             "--dtype", args.dtype,
             "--seed", str(args.seed),
             "--gpu-memory-utilization", str(args.gpu_memory_utilization),

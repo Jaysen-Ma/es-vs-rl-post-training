@@ -55,28 +55,9 @@ import sys  # noqa: E402
 import time  # noqa: E402
 from pathlib import Path  # noqa: E402
 
+from es_capacity.models import MODELS, resolve_model as resolve  # noqa: E402
+
 TASK = "mmlu"
-
-# The same six arms as the GPQA sweep, so the two probes are comparable. Hub
-# ids rather than paths so this runs anywhere; MODELS_DIR is checked first so a
-# local mirror is used when one exists.
-MODELS = {
-    "1.5B-base": "Qwen/Qwen2.5-1.5B",
-    "1.5B-ES": "zocrate/Qwen2.5-1.5B-ES-math",
-    "1.5B-RL": "hkust-nlp/Qwen-2.5-1.5B-SimpleRL-Zoo",
-    "7B-base": "Qwen/Qwen2.5-7B",
-    "7B-ES": "zocrate/Qwen2.5-7B-ES-math",
-    "7B-RL": "hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo",
-}
-
-MODELS_DIR = Path(os.environ.get("MODELS_DIR", Path.home() / "models"))
-
-
-def resolve(arm: str) -> str:
-    """Local mirror of this arm's checkpoint if present, else its Hub id."""
-    hub_id = MODELS.get(arm, arm)
-    local = MODELS_DIR / hub_id.split("/")[-1]
-    return str(local) if (local / "config.json").is_file() else hub_id
 
 
 def run_one_arm(arm: str, out_root: Path, args) -> None:

@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "es-capacity"
+version = "0.1.0"
+description = "Analysis of reasoning coverage and behavioural changes after ES and GRPO post-training."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "Jaysen Ma" }]
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/Jaysen-Ma/es-vs-rl-post-training"
+
+[project.scripts]
+es-capacity-ethics = "es_capacity.analysis.ethics_cli:main"
+
+[project.optional-dependencies]
+# Summaries, statistical comparisons and figures from saved evaluation outputs.
+analysis = [
+    "matplotlib>=3.8,<4",
+    "numpy>=1.26,<3",
+    "scipy>=1.11,<2",
+]
+
+[dependency-groups]
+# Keep the existing locked setup command, using the same dependencies as the wheel.
+analysis = ["es-capacity[analysis]"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/es_capacity"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/scripts",
+    "/tests",
+    "/pyproject.toml",
+    "/uv.lock",
+    "/.python-version",
+    "/README.md",
+    "/DEVELOPMENT.md",
+    "/LICENSE",
+    "/config.example.sh",
+    "/external-repositories.toml",
+]
