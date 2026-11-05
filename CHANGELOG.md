@@ -4,6 +4,49 @@ Release availability and dates are recorded on the
 [GitHub Releases page](https://github.com/Jaysen-Ma/es-vs-rl-post-training/releases).
 An entry here can describe a release still being prepared.
 
+## Unreleased
+
+- Clarify how to invoke installed analysis commands after `uv sync`, which does
+  not activate the checkout environment.
+- Split reproduction, model evaluation and contributor documentation into focused
+  guides. Shorten README setup and retain the existing DEVELOPMENT.md anchors.
+  Include the three guides in source archives; other local docs remain ignored.
+- Package CPU checkpoint comparison with `es-capacity-compare-weights`, explicit
+  output paths and deferred PyTorch/SafeTensors imports. Keep the existing script
+  launcher, numerical method and three CSV formats.
+- Package the remaining four ETHICS subsets under `es-capacity-evaluate ethics
+  --subset rest`, preserving contrast-group scoring and the legacy launcher.
+  Required CSVs are checked before preparation; generated YAML quotes data paths.
+- Package ETHICS commonsense evaluation with
+  `es-capacity-evaluate ethics --subset commonsense`, a bundled task template and
+  installed worker dispatch. Retain the legacy launcher and scoring/summary
+  behavior. Generated task YAML quotes its absolute data path; missing explicit
+  CSV files fail before preparation.
+- Package the GPQA seed-sweep runner with `es-capacity-evaluate gpqa`, installed
+  worker dispatch and a compatibility launcher for `scripts/gpqa/run_sweep.py`.
+  Model reuse, cache disabling, seed propagation, defaults and output formats
+  are preserved. Empty, duplicate and negative seed selections are rejected.
+- Package the MMLU model runner under `evaluation/`, with
+  `es-capacity-evaluate mmlu` and a compatibility launcher for `scripts/mmlu/run.py`.
+  Workers launch the installed module; runtime imports and vLLM settings are
+  deferred to worker execution. Evaluation defaults, scoring and output formats
+  are preserved. Installed evaluation commands require an explicit output path.
+- Package saved weight-distribution analysis and rendering with
+  `es-capacity-weights`, explicit CSV/output directories and a compatibility
+  launcher for `scripts/weights/plot.py`. Plotting dependencies load only when
+  needed; histogram calculations and figure styling are preserved.
+- Package GPQA seed-sweep summaries and Markdown tables under
+  `es-capacity-gpqa check`, `summarize` and `tables`, retaining the existing script
+  launchers. Valid study inputs retain their CSV and table outputs.
+- Check complete GPQA seed/arm/question coverage and nonempty hashes before
+  summaries. Invalid pairs and missing SciPy fail clearly. Unpaired reruns remove
+  stale generated pair reports from their output directory.
+- Package saved-result MMLU analysis with `es-capacity-mmlu`, explicit input/output
+  directories and a compatibility launcher for `scripts/mmlu/tables.py`.
+- Reject duplicate MMLU sample keys and mismatched question sets before paired
+  comparisons. Valid-input scores, statistical calculations and output formats
+  are unchanged.
+
 ## 0.1.0
 
 The first packaged release provides tools for analysing saved evaluation outputs

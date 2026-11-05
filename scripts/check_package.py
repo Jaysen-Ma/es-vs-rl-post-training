@@ -2,6 +2,7 @@
 
 import argparse
 import hashlib
+import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -59,6 +60,9 @@ def main(argv=None):
         with tarfile.open(sdist) as archive:
             archive.extractall(work / "source", filter="data")
         source, = (work / "source").iterdir()
+        for guide in ("reproduction.md", "model_evaluation.md", "development.md"):
+            if not (source / "docs" / guide).is_file():
+                raise RuntimeError(f"source distribution is missing docs/{guide}")
 
         constraints = work / "constraints.txt"
         run(
@@ -91,6 +95,32 @@ assert importlib.util.find_spec('scipy') is None
         run(models_cli, "--help", cwd=work)
         passk_cli = bin_dir / ("es-capacity-passk.exe" if sys.platform == "win32" else "es-capacity-passk")
         run(passk_cli, "--help", cwd=work)
+        mmlu_cli = bin_dir / ("es-capacity-mmlu.exe" if sys.platform == "win32" else "es-capacity-mmlu")
+        run(mmlu_cli, "--help", cwd=work)
+        gpqa_cli = bin_dir / ("es-capacity-gpqa.exe" if sys.platform == "win32" else "es-capacity-gpqa")
+        run(gpqa_cli, "--help", cwd=work)
+        weights_cli = bin_dir / ("es-capacity-weights.exe" if sys.platform == "win32" else "es-capacity-weights")
+        run(weights_cli, "--help", cwd=work)
+        evaluate_cli = bin_dir / ("es-capacity-evaluate.exe" if sys.platform == "win32" else "es-capacity-evaluate")
+        run(evaluate_cli, "--help", cwd=work)
+        run(evaluate_cli, "mmlu", "--help", cwd=work)
+        run(evaluate_cli, "gpqa", "--help", cwd=work)
+        run(evaluate_cli, "ethics", "--help", cwd=work)
+        compare_cli = bin_dir / ("es-capacity-compare-weights.exe" if sys.platform == "win32" else "es-capacity-compare-weights")
+        run(compare_cli, "--help", cwd=work)
+        run(python, "-I", "-c", """
+import json
+from pathlib import Path
+from es_capacity.evaluation.ethics_commonsense import ensure_test_jsonl, write_task_yaml
+csv_path = Path('synthetic-ethics.csv')
+csv_path.write_text('label,input\\n0,A synthetic harmless scenario\\n1,A synthetic harmful scenario\\n')
+root = Path('ethics task: # example')
+jsonl = ensure_test_jsonl(root, csv_path)
+task = write_task_yaml(root, jsonl)
+line, = (line for line in task.read_text().splitlines() if line.startswith('    test: '))
+assert json.loads(line.split('test: ', 1)[1]) == str(jsonl.resolve())
+assert 'Question: Is this wrong?' in task.read_text()
+""", cwd=work)
         checkpoint = work / "checkpoint"
         checkpoint.mkdir()
         (checkpoint / "config.json").write_text("{}")
@@ -115,6 +145,22 @@ for name in ('torch', 'vllm', 'lm_eval', 'datasets', 'transformers'):
         for filename in ("synthetic_summary.json", "synthetic_passk.png"):
             if not (example_out / filename).is_file():
                 raise RuntimeError(f"installed pass@k example did not produce {filename}")
+        # Invoke the installed MMLU command from outside the checkout as well.
+        mmlu_inputs = work / "mmlu-inputs"
+        for arm, correct in (("7B-base", True), ("7B-ES", False)):
+            directory = mmlu_inputs / arm
+            directory.mkdir(parents=True)
+            (directory / "results.json").write_text(
+                json.dumps({"results": {"mmlu": {"acc,none": int(correct)}},
+                            "n-samples": {"mmlu": {"effective": 1}}})
+            )
+            (directory / "samples.jsonl").write_text(
+                json.dumps({"subtask": "mmlu", "doc_id": 0, "acc": int(correct)}) + "\n"
+            )
+        mmlu_out = work / "mmlu-output"
+        run(mmlu_cli, "--results-dir", mmlu_inputs, "--out", mmlu_out, cwd=work)
+        if not (mmlu_out / "scores.csv").is_file():
+            raise RuntimeError("installed MMLU command did not produce scores.csv")
         # Run the shipped tests and runner scripts against the installed wheel.
         # -I and an external cwd prevent imports from the development checkout.
         tests = source / "tests"

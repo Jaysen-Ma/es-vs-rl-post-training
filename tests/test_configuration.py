@@ -208,6 +208,7 @@ class RunnerConfigurationTests(unittest.TestCase):
 
     def test_ethics_data_directory_reaches_worker_command(self):
         runner = load_runner("scripts/ethics/run_rest.py")
+        implementation = sys.modules[runner.run_one_arm.__module__]
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             cli_data = root / "explicit data"
@@ -224,8 +225,8 @@ class RunnerConfigurationTests(unittest.TestCase):
                     with (
                         patch.dict(os.environ, {"ETHICS_DATA_DIR": str(env_data)}),
                         patch.object(sys, "argv", argv),
-                        patch.object(runner, "prepare", return_value=out) as prepare,
-                        patch.object(runner, "summarize"),
+                        patch.object(implementation, "prepare", return_value=out) as prepare,
+                        patch.object(implementation, "summarize"),
                         patch.object(
                             runner.subprocess, "run", return_value=SimpleNamespace(returncode=0)
                         ) as run,
@@ -240,6 +241,7 @@ class RunnerConfigurationTests(unittest.TestCase):
         for name in ("scripts/mmlu/run.py", "scripts/gpqa/run_sweep.py", "scripts/ethics/run.py", "scripts/ethics/run_rest.py"):
             with self.subTest(runner=name):
                 runner = load_runner(name)
+                implementation = sys.modules.get(runner.run_one_arm.__module__, runner)
                 argv = [name, "--arms", "7B-base", "--config", str(self.config), "--out", str(self.root / "out")]
                 if name.endswith("run_rest.py"):
                     argv += ["--data-dir", str(self.root)]
@@ -248,8 +250,8 @@ class RunnerConfigurationTests(unittest.TestCase):
                     stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
                     run = stack.enter_context(patch.object(runner.subprocess, "run", return_value=SimpleNamespace(returncode=0)))
                     for helper in ("ensure_test_jsonl", "write_task_yaml", "prepare", "summarize"):
-                        if hasattr(runner, helper):
-                            stack.enter_context(patch.object(runner, helper, return_value=self.root))
+                        if hasattr(implementation, helper):
+                            stack.enter_context(patch.object(implementation, helper, return_value=self.root))
                     runner.main()
                 command = run.call_args.args[0]
                 self.assertEqual(command[command.index("--config") + 1], str(self.config))
@@ -259,11 +261,12 @@ class RunnerConfigurationTests(unittest.TestCase):
         for name in ("scripts/mmlu/run.py", "scripts/gpqa/run_sweep.py", "scripts/ethics/run.py", "scripts/ethics/run_rest.py"):
             with self.subTest(runner=name):
                 runner = load_runner(name)
+                implementation = sys.modules.get(runner.run_one_arm.__module__, runner)
                 with contextlib.ExitStack() as stack:
                     stack.enter_context(patch.object(sys, "argv", [name, "--arms", "7B-base", "--config", str(config)]))
                     stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
                     run = stack.enter_context(patch.object(runner.subprocess, "run"))
-                    helpers = [stack.enter_context(patch.object(runner, helper)) for helper in ("ensure_test_jsonl", "prepare") if hasattr(runner, helper)]
+                    helpers = [stack.enter_context(patch.object(implementation, helper)) for helper in ("ensure_test_jsonl", "prepare") if hasattr(implementation, helper)]
                     with self.assertRaises(SystemExit) as raised:
                         runner.main()
                 self.assertEqual(raised.exception.code, 2)
@@ -298,7 +301,7 @@ class RunnerConfigurationTests(unittest.TestCase):
         config = model_config(self.root / "weight-models.toml", paths)
         with (
             patch.object(sys, "argv", ["compare.py", "--scale", "7B", "--config", str(config)]),
-            patch.object(runner, "compare") as compare,
+            patch.object(sys.modules[runner.compare.__module__], "compare") as compare,
             contextlib.redirect_stdout(io.StringIO()),
         ):
             runner.main()
@@ -309,6 +312,7 @@ class RunnerConfigurationTests(unittest.TestCase):
 
     def test_ethics_worker_uses_selected_directory(self):
         runner = load_runner("scripts/ethics/run_rest.py")
+        implementation = sys.modules[runner.run_one_arm.__module__]
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             out = root / "output"
@@ -318,8 +322,8 @@ class RunnerConfigurationTests(unittest.TestCase):
             ]
             with (
                 patch.object(sys, "argv", argv),
-                patch.object(runner, "prepare", return_value=out) as prepare,
-                patch.object(runner, "run_one_arm") as evaluate,
+                patch.object(implementation, "prepare", return_value=out) as prepare,
+                patch.object(implementation, "run_one_arm") as evaluate,
             ):
                 runner.main()
             prepare.assert_called_once_with(out, root)
@@ -331,11 +335,14 @@ class RunnerConfigurationTests(unittest.TestCase):
             missing = str(Path(tmp) / "missing")
             with (
                 patch.object(sys, "argv", ["run_rest.py", "--data-dir", missing]),
-                patch.object(runner, "prepare") as prepare,
+                patch.object(sys.modules[runner.run_one_arm.__module__], "prepare") as prepare,
                 patch.object(runner.subprocess, "run") as run,
+                contextlib.redirect_stderr(io.StringIO()) as error,
             ):
-                with self.assertRaisesRegex(SystemExit, "set --data-dir or ETHICS_DATA_DIR"):
+                with self.assertRaises(SystemExit) as raised:
                     runner.main()
+            self.assertEqual(raised.exception.code, 2)
+            self.assertIn("set --data-dir or ETHICS_DATA_DIR", error.getvalue())
             prepare.assert_not_called()
             run.assert_not_called()
 
