@@ -59,7 +59,10 @@ jobs:
           done
 
       - name: Build and test the installed distribution
-        run: uv run --locked --group analysis python scripts/check_package.py
+        run: |
+          uv run --locked --group analysis python scripts/check_package.py --out-dir dist
+          cd dist
+          sha256sum --check SHA256SUMS
 
   required-checks:
     name: CI

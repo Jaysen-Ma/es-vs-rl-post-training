@@ -45,6 +45,8 @@ include = [
     "/.python-version",
     "/README.md",
     "/DEVELOPMENT.md",
+    "/CHANGELOG.md",
+    "/RELEASING.md",
     "/LICENSE",
     "/config.example.sh",
     "/config.example.toml",

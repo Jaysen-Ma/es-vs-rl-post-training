@@ -341,7 +341,9 @@ UV_PYTHON=3.10 UV_PROJECT_ENVIRONMENT=/tmp/es-capacity-py310 uv run --locked --g
 ```
 
 The package check uses temporary build and installation directories and removes
-them on exit. Its analysis dependencies are constrained to `uv.lock`. A failure
+them on exit. Use `--out-dir NEW_DIRECTORY` to retain the exact validated wheel
+and source archive with a `SHA256SUMS` file after all checks pass; an existing
+directory is rejected. Its analysis dependencies are constrained to `uv.lock`. A failure
 returns a nonzero exit code and prints the failing command. CI checks the current
 software contracts; it does not rerun model evaluation or establish the study's
 scientific conclusions.
@@ -381,3 +383,7 @@ locked checkout environment above to reproduce the validated dependency versions
 Validate the wheel by installing it into a fresh environment and importing
 `es_capacity` from a directory outside this checkout. Editable-install tests alone
 do not establish that the built distribution includes the required modules.
+
+For versioned downloads, see the [release notes](CHANGELOG.md) and
+[GitHub release procedure](RELEASING.md). Releases are prepared in a PR, then
+tagged and published from the validated merged commit.

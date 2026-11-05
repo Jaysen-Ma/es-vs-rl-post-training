@@ -1,5 +1,7 @@
 """Build and validate the distribution in isolation (Python 3.10+ and uv)."""
 
+import argparse
+import hashlib
 from pathlib import Path
 import shutil
 import subprocess
@@ -19,7 +21,31 @@ def run(*args, cwd=ROOT, quiet=False):
     )
 
 
-def main():
+def export_artifacts(dist, output):
+    """Retain the validated files without replacing an earlier candidate."""
+    wheel, = dist.glob("*.whl")
+    sdist, = dist.glob("*.tar.gz")
+    output.mkdir(parents=True)
+    checksums = []
+    for artifact in sorted((wheel, sdist)):
+        shutil.copy2(artifact, output / artifact.name)
+        digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+        checksums.append(f"{digest}  {artifact.name}\n")
+    (output / "SHA256SUMS").write_text("".join(checksums), encoding="utf-8")
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--out-dir", type=Path,
+        help="retain validated wheel, source archive and SHA256SUMS in a new directory",
+    )
+    args = parser.parse_args(argv)
+    if args.out_dir is not None:
+        args.out_dir = args.out_dir.absolute()
+        if args.out_dir.exists() or args.out_dir.is_symlink():
+            parser.error(f"output directory already exists: {args.out_dir}")
+
     uv = shutil.which("uv")
     if uv is None:
         raise SystemExit("uv must be installed and available on PATH")
@@ -95,6 +121,9 @@ for name in ('torch', 'vllm', 'lm_eval', 'datasets', 'transformers'):
         if not list(tests.glob("test_*.py")):
             raise RuntimeError("source distribution contains no tests")
         run(python, "-I", "-m", "unittest", "discover", "-s", tests, "-v", cwd=work)
+        if args.out_dir is not None:
+            export_artifacts(work / "dist", args.out_dir)
+            print(f"Validated artifacts: {args.out_dir}", flush=True)
         print("Package checks passed.", flush=True)
 
 

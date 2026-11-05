@@ -64,6 +64,11 @@ These results show that maths-only evolutionary post-training can improve mathem
 
 ## Evaluation
 
+Versioned package downloads are distributed through
+[GitHub Releases](https://github.com/Jaysen-Ma/es-vs-rl-post-training/releases)
+once published. See the [release notes](CHANGELOG.md) and
+[wheel installation instructions](RELEASING.md#install-a-release).
+
 For analysis of saved outputs, install [uv](https://docs.astral.sh/uv/getting-started/installation/) and use the locked Python environment:
 
 ```bash
