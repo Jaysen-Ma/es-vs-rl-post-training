@@ -6,6 +6,8 @@ An entry here can describe a release still being prepared.
 
 ## Unreleased
 
+- Clarify how to invoke installed analysis commands after `uv sync`, which does
+  not activate the checkout environment.
 - Split reproduction, model evaluation and contributor documentation into focused
   guides. Shorten README setup and retain the existing DEVELOPMENT.md anchors.
   Include the three guides in source archives; other local docs remain ignored.

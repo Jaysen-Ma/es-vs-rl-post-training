@@ -25,6 +25,17 @@ uv sync --locked --group analysis
 uv run --locked --group analysis es-capacity-passk --help
 ```
 
+Later examples use installed command names. From this checkout, prefix those
+commands with `uv run --locked --group analysis`, for example:
+
+```bash
+uv run --locked --group analysis es-capacity-mmlu --results-dir /data/mmlu-run --out /data/mmlu-summary
+```
+
+Alternatively, activate this checkout's environment with `source .venv/bin/activate`
+before running the command names directly. For a wheel installation, use the
+executables from the environment where you installed it.
+
 `uv sync` installs `es_capacity` in editable mode, so changes under
 `src/es_capacity/` are available to the existing script commands.
 
