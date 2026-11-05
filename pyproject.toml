@@ -10,13 +10,15 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 authors = [{ name = "Jaysen Ma" }]
-dependencies = []
+dependencies = ["tomli>=2,<3; python_version < '3.11'"]
 
 [project.urls]
 Repository = "https://github.com/Jaysen-Ma/es-vs-rl-post-training"
 
 [project.scripts]
 es-capacity-ethics = "es_capacity.analysis.ethics_cli:main"
+es-capacity-models = "es_capacity.cli.models:main"
+es-capacity-passk = "es_capacity.cli.passk:main"
 
 [project.optional-dependencies]
 # Summaries, statistical comparisons and figures from saved evaluation outputs.
@@ -43,7 +45,10 @@ include = [
     "/.python-version",
     "/README.md",
     "/DEVELOPMENT.md",
+    "/CHANGELOG.md",
+    "/RELEASING.md",
     "/LICENSE",
     "/config.example.sh",
+    "/config.example.toml",
     "/external-repositories.toml",
 ]

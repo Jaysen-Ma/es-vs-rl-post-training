@@ -1,9 +1,9 @@
 # Development and reproduction
 
 The `es_capacity` package provides the shared model registry, filesystem
-configuration and saved-result ETHICS analysis. Other analysis commands and
-model runners remain in `scripts/`. Model execution and ES training require
-separate environments.
+configuration and saved-result pass@k/ETHICS analysis. Other analysis commands and
+model runners remain in `scripts/`. Model execution requires a separate GPU
+environment.
 
 ## Analysis environment
 
@@ -18,7 +18,7 @@ Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and use Py
 
 ```bash
 uv sync --locked --group analysis
-uv run --locked --group analysis python scripts/passk/analyze.py --help
+uv run --locked --group analysis es-capacity-passk --help
 ```
 
 `uv sync` installs `es_capacity` in editable mode, so changes under
@@ -32,8 +32,10 @@ Use a separate virtual environment from any existing GPU training environment;
 selected dependency groups.
 
 The validated baseline is CPython 3.12 on Linux with uv 0.10.3. The declared Python
-minimum is 3.10 because the scripts use Python 3.10 syntax. Other Python versions
-and platforms have not yet been validated.
+minimum is 3.10 because the scripts use Python 3.10 syntax. Core model
+configuration and runner CLI wiring include the `tomli` fallback on Python 3.10.
+The full analysis suite and package checks run on Python 3.10 and 3.12 in CI.
+Other Python versions and platforms have not yet been validated.
 
 To deliberately update dependencies, use `uv lock --upgrade-package NAME`, repeat
 the relevant validation, and commit the lockfile change with its reason. Routine
@@ -44,7 +46,8 @@ setup should use `--locked`.
 | Task | Command | Required inputs |
 |---|---|---|
 | Paper's pass@k figure | `uv run --locked --group analysis python scripts/plot_hero.py` | The committed three-way summary JSON files |
-| pass@k summaries | `uv run --locked --group analysis python scripts/passk/analyze.py --run-tag RUN --label base --label trained --label rl --baseline base --plot` | Raw per-question evaluation JSONL files under `results/RUN/` |
+| pass@k example | `uv run --locked --group analysis es-capacity-passk --example --out /tmp/passk-example --plot` | Synthetic correctness scores bundled with the package |
+| pass@k summaries | `uv run --locked --group analysis es-capacity-passk --results-dir PATH --out OUTPUT --label base --label trained --label rl --baseline base --plot` | Scored per-question evaluation JSONL files under `PATH/LABEL/BENCHMARK/` |
 | MMLU tables | `uv run --locked --group analysis python scripts/mmlu/tables.py --sweep-root PATH` | Saved MMLU results and sample files |
 | ETHICS commonsense summary | `uv run --locked --group analysis es-capacity-ethics --results-dir PATH --subset commonsense` | `PATH/ARM/samples.jsonl` for each model arm |
 | Other four ETHICS summaries | `uv run --locked --group analysis es-capacity-ethics --results-dir PATH --subset rest` | `PATH/ARM/rest_samples.jsonl` for each model arm |
@@ -69,7 +72,79 @@ summary functions after evaluation; the scoring and CSV formats are unchanged.
 Checkpoint comparison (`scripts/weights/compare.py`) requires PyTorch and
 safetensors and is outside this analysis environment.
 
-## Model execution and external repositories
+## pass@k analysis
+
+`es-capacity-passk` reads the scored JSONL shards produced by the existing
+limit-of-RLVR maths evaluator. It does not generate answers or grade them again.
+The numerical functions are in `src/es_capacity/analysis/passk.py`; the installed
+command is in `src/es_capacity/cli/passk.py`.
+
+Install the analysis environment above, then run a self-contained example:
+
+```bash
+uv run --locked --group analysis es-capacity-passk --example --out /tmp/passk-example --plot
+```
+
+The bundled `src/es_capacity/examples/passk.json` contains synthetic correctness
+indicators for four questions and four attempts under the labels `reference` and
+`candidate`. It includes one question in each coverage category: solved by both,
+solved by just the reference, solved by just the candidate, and solved by neither.
+The example makes no claims about model performance and includes no benchmark
+questions or generated answers. Its summary and plot remain in the requested
+output directory after the temporary example inputs are removed.
+
+For actual scored outputs, use this layout:
+
+```text
+RUN/
+  base/math500/shard_0.jsonl
+  trained/math500/shard_0.jsonl
+  rl/math500/shard_0.jsonl
+```
+
+Every nonempty JSONL line needs an `idx` question ID and a `score` list of boolean
+correctness indicators, for example:
+
+```json
+{"idx": 0, "score": [true, false, false, true]}
+```
+
+Shard files should cover disjoint question IDs. All compared labels must cover
+the same IDs. Each label must have a positive, uniform sample count across its
+questions. The four-way breakdown additionally requires equal counts between
+each compared pair; unequal-budget pairs retain their curves and omit that
+breakdown. The existing shard-loading rules are retained in this extraction.
+
+```bash
+es-capacity-passk --results-dir /data/run --out /data/summaries --label base --label trained --label rl --baseline base --benchmark math500 --plot
+```
+
+`--results-dir` and `--out` are explicit, so installed commands work outside a
+checkout. Labels are unique directory names; `--baseline` defaults to the first
+label. Repeat `--benchmark` to select from `aime24`, `math500`, `minerva_math` and
+`olympiadbench`. Without that option the command processes the four study
+benchmarks and reports missing label directories as skipped. An explicitly
+selected missing benchmark is an error, as is a run with no available benchmarks.
+
+Outputs are `BENCHMARK_summary.json` and, with `--plot`, `BENCHMARK_passk.png`.
+Existing files of those names are replaced. The JSON schema remains unchanged:
+`baseline`, per-label `n_sampling`, `ks`, `pass_at_k`, and `four_way_breakdown`.
+Pass@k values are fractions from 0 to 1; `fractions_pct` contains percentages.
+Scoring rules, power-of-two k values and comparison guards are unchanged.
+
+The estimator matches the formula in the external
+[evaluate.py](https://github.com/Jaysen-Ma/limit-of-RLVR/blob/569825a3f8c68dc6d25415917498db634ea73bdb/math/examples/math_eval/evaluate.py#L16):
+`1 - C(n-c, k) / C(n, k)`, where `c` of `n` completions are correct. Tests compare
+against an independent exact-combination reference, including all-correct,
+all-incorrect, non-power-of-two and larger sample budgets. CI requires no external
+checkout to run these tests.
+
+The old `python scripts/passk/analyze.py --run-tag RUN --label ...` interface is a
+compatibility launcher. It still reads `results/RUN/` relative to the checkout and
+defaults to writing summaries there. It delegates to the same packaged functions;
+new code should use the installed command with explicit paths.
+
+## Evaluation environments and study setup references
 
 `external-repositories.toml` records the exact local checkout revisions inspected
 on 2026-11-05. These are setup reference points, not evidence that the historical
@@ -77,7 +152,9 @@ experiments ran at precisely those commits. The experiment records do not yet
 establish that provenance. Branch names are hints; use the recorded commit IDs
 when reconstructing these checkouts.
 
-The external repositories currently declare incompatible dependency versions:
+The training repository is recorded as study background; evaluation users do not
+need to install or run it. The external repositories declare incompatible
+dependency versions:
 
 | Workflow | External declaration at the recorded revision |
 |---|---|
@@ -92,8 +169,8 @@ paper. A follow-up GPU validation should record Python, package versions, CUDA
 and driver versions, model and dataset revisions, repository commits and run
 settings together.
 
-Use separate environments for training and maths evaluation. The local MMLU,
-GPQA and ETHICS runners additionally depend on the evaluation harness (`lm_eval`),
+Maths evaluation uses the external evaluation environment. The local MMLU,
+GPQA and ETHICS runners depend on the evaluation harness (`lm_eval`),
 Hugging Face Datasets and vLLM. They are not covered by `uv.lock` yet. Setup for
 those workflows must be validated on suitable hardware before it is described
 as reproducible.
@@ -101,44 +178,88 @@ as reproducible.
 Install the shared package into an existing GPU environment with:
 
 ```bash
-python -m pip install --no-deps -e .
+python -m pip install -e .
 ```
 
-The core installation has no mandatory third-party dependencies. This command
-adds shared configuration and analysis code without installing or upgrading the
-GPU runtime. ETHICS statistical summaries still require SciPy in that environment.
-Keep using its interpreter for `python scripts/...` commands.
+The core installation has no third-party dependencies on Python 3.11 or newer;
+Python 3.10 additionally installs `tomli` to read TOML configuration. This command
+adds the shared package without selecting the analysis extra or GPU runtime.
+ETHICS statistical summaries still require SciPy in that environment. Keep using
+its interpreter for `python scripts/...` commands. Users evaluate downloaded
+checkpoints; no training step is required.
 
 ## Model and data paths
 
 The registry in `src/es_capacity/models.py` defines the same six model arms used
-in saved outputs. MMLU, GPQA, ETHICS and checkpoint analysis share these definitions.
-The existing `RL` labels are retained for compatibility.
+in saved outputs; `RL` denotes the GRPO checkpoints. The README links to all six
+checkpoint repositories. Users download checkpoint files themselves and provide
+local paths. MMLU, GPQA, ETHICS, maths evaluation and checkpoint analysis share the
+same resolver.
 
-- `MODELS_DIR` selects the local checkpoint mirror; the default is `~/models`.
-  Evaluation runners use a checkpoint under that directory if its `config.json`
-  exists, and otherwise use its Hugging Face model ID. The previous basename
-  matching rule is retained for custom IDs and paths supplied through `--arms`.
-- Checkpoint analysis requires local files and reports a missing checkpoint
-  rather than downloading one.
-- `ETHICS_DATA_DIR` selects the unpacked directory containing `deontology/`,
-  `justice/`, `virtue/` and `utilitarianism/`. The old `/tmp/ethics/ethics` default
-  is retained. `scripts/ethics/run_rest.py --data-dir PATH` takes precedence and
-  is forwarded to worker processes.
+Copy `config.example.toml` to `config.toml` and edit the `[models]` table. The six
+paths are independent; directories can have any names. Absolute paths and `~`
+are supported. Relative paths are anchored to the configuration file's directory,
+not the shell's current directory. Shell variables such as `$HOME` are not
+expanded inside TOML strings. `config.toml` is ignored by Git.
 
-These environment variables are read when paths are requested. For example:
-
-```bash
-export MODELS_DIR=/path/to/models
-export ETHICS_DATA_DIR=/path/to/ethics/ethics
-python scripts/ethics/run_rest.py --arms 7B-base --data-dir /another/ethics/ethics
+```toml
+[models]
+"7B-base" = "/data/checkpoints/base"
+"7B-ES" = "/another/disk/es-model"
+"7B-RL" = "../downloaded-checkpoints/grpo"
 ```
 
-The Python scripts do not automatically source `config.sh`. Export variables in
-the shell or explicitly source the file. The mathematical harness remains a shell
-wrapper: copy `config.example.sh` to `config.sh` and set `MATH_EVAL_DIR` and its
-per-model variables as before. Output-directory defaults are unchanged in this
-step; the shared package does not infer a repository root from its installation.
+You may configure a subset and select it with `--arms`. Commands without an arms
+selection retain their existing defaults, which can require additional entries.
+Check paths before starting an evaluation:
+
+```bash
+es-capacity-models check --config config.toml --arms 7B-base 7B-ES 7B-RL
+es-capacity-models path 7B-ES --config config.toml
+python scripts/mmlu/run.py --config config.toml --arms 7B-base 7B-ES 7B-RL
+```
+
+`check` reports every selected path as `OK` or `MISSING`. Missing checkpoint files
+return status 1; invalid configuration returns status 2. `path` prints one
+validated absolute checkpoint path, making the same resolution available to the
+maths shell wrapper. Neither command loads weights or GPU libraries. A valid
+local directory must contain `config.json`; these checks do not establish that
+all weight shards/tokenizer files are complete or usable by the model runtime.
+
+Configuration selection is explicit:
+
+1. `--config FILE` takes precedence over `ES_CAPACITY_CONFIG`.
+2. `ES_CAPACITY_CONFIG` can select a file for every workflow. Use an absolute path
+   when running commands from different directories.
+3. If neither is set, the previous local-mirror convention under `MODELS_DIR`
+   (default `~/models`) remains available. Directory basenames follow the model
+   IDs in the registry.
+
+When a file is selected, a missing arm entry is an error. No local path falls
+back to a Hugging Face model ID. Parent evaluation processes check all selected
+models before dataset preparation and pass the selected config file to workers.
+Existing scripts that relied on automatic model downloads must now download the
+models themselves and configure their paths.
+
+Maths evaluation uses the same config and requires this package installed in its
+own evaluation environment:
+
+```bash
+export MATH_EVAL_DIR=/path/to/limit-of-RLVR/math/examples/math_eval
+bash scripts/passk/run_eval.sh --config config.toml 7B-base base my-run
+```
+
+The optional `config.sh` still supplies shell settings to the maths wrapper.
+`config.example.sh` now illustrates the external harness path and config-file
+selection; per-model paths belong in TOML. Existing exported model-path variables
+and direct local paths remain accepted by the maths wrapper. Its argument is
+resolved and checked before it changes directory into the external harness.
+Python scripts do not source shell configuration files.
+
+`ETHICS_DATA_DIR` selects the unpacked dataset containing `deontology/`, `justice/`,
+`virtue/` and `utilitarianism/`. `scripts/ethics/run_rest.py --data-dir PATH` takes
+precedence; the `/tmp/ethics/ethics` default is retained. Output-directory defaults
+are unchanged. Analysis of saved outputs does not require model configuration.
 
 The write-up's grader-audit workflow is currently excluded from the published
 repository. Making that workflow reproducible is a separate follow-up; the packaging work does not add the ignored local scripts or raw benchmark text.
@@ -146,16 +267,19 @@ repository. Making that workflow reproducible is a separate follow-up; the packa
 ## Review and validation
 
 Keep environment changes, code movement and scoring changes in separate commits.
-Tests use standard-library `unittest` and require no GPU libraries. The ETHICS
-tests check summary output on small synthetic predictions, command errors, and
-the boundary between analysis and model execution. Summary-output tests require
-the analysis dependencies; run the full suite with that group enabled:
+Tests use standard-library `unittest` with the analysis dependencies and require
+no GPU libraries. They cover configuration, synthetic summary outputs, and the
+boundary between analysis and model execution. Evaluation regressions also cover
+question-ID and sample-budget checks, complete ETHICS groups and paired IDs,
+matching GPQA result/sample files, fresh dataset preparation and stored histogram
+grids. Run the full suite with the analysis group enabled:
 
 ```bash
 uv lock --check
 uv sync --locked --group analysis
 uv run --locked --group analysis python -m unittest discover -s tests -v
 uv run --locked --group analysis es-capacity-ethics --help
+uv run --locked --group analysis es-capacity-models --help
 uv run --locked --group analysis python scripts/passk/analyze.py --help
 uv run --locked --group analysis python scripts/mmlu/tables.py --help
 uv run --locked --group analysis python scripts/gpqa/analyze.py --help
@@ -169,7 +293,11 @@ that the locked plotting environment can consume the committed summaries. These
 are installation smoke checks, not a full validation of statistical correctness.
 For the ETHICS extraction, also compare both summary CSVs byte for byte against
 the previous implementation using the same saved samples in disposable directories.
-Previously withheld scoring and sample-matching fixes remain a separate review.
+When changing evaluation analysis, rerun the saved-data checks in disposable
+directories: compare complete-input pass@k and ETHICS summaries before and after
+the change, validate GPQA run/sample matching, and check histogram coordinates
+against the serialized bin edges. Raw experiment files are not included in Git;
+CI covers these contracts with synthetic regression inputs.
 
 ## Continuous integration
 
@@ -180,14 +308,21 @@ without an open pull request does not trigger it. GitHub reports the result on
 the pull request; requiring that check before merging is a separate repository
 setting ([GitHub workflow events](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request)).
 
-CI uses Ubuntu 24.04, Python 3.12 from `.python-version`, and uv 0.10.3. It installs
-the locked analysis environment, runs the test suite and checks analysis command
-help. It then builds the source distribution and wheel, installs the wheel into
-a fresh temporary environment, and runs the tests from the source distribution
-against that installation. The package check also verifies that core command help
-works without analysis dependencies and that the analysis extra installs without
-GPU libraries. These checks use synthetic predictions and need no raw benchmark
-outputs or model checkpoints.
+CI uses Ubuntu 24.04 and uv 0.10.3, with separate jobs for Python 3.10 (the declared
+minimum) and Python 3.12 (the default selected by `.python-version`). Each job
+installs the locked analysis environment, runs the full test suite and checks
+analysis command help. It then builds the source distribution and wheel, installs
+the wheel into a fresh temporary environment, and runs the tests from the source
+distribution against that installation. Before adding the analysis extra, the
+package check runs the installed model-config command on a synthetic checkpoint
+directory, including the conditional TOML parser on Python 3.10. These checks
+need no raw benchmark outputs or downloaded model checkpoints.
+
+The final check named `CI` runs even if a matrix job fails or is skipped and
+succeeds only when every Python job succeeds. Use this stable check name in
+`main` branch protection, with the branch required to be up to date. Repository
+settings are managed separately from the workflow file. The matrix continues
+both Python jobs after a failure so their individual results remain visible.
 
 Run the commands in **Review and validation** above, followed by the same package
 check used in CI:
@@ -196,8 +331,19 @@ check used in CI:
 uv run --locked --group analysis python scripts/check_package.py
 ```
 
+To reproduce the minimum-version job without replacing this checkout's normal
+`.venv`, select a separate environment directory:
+
+```bash
+UV_PYTHON=3.10 UV_PROJECT_ENVIRONMENT=/tmp/es-capacity-py310 uv sync --locked --group analysis
+UV_PYTHON=3.10 UV_PROJECT_ENVIRONMENT=/tmp/es-capacity-py310 uv run --locked --group analysis python -m unittest discover -s tests -v
+UV_PYTHON=3.10 UV_PROJECT_ENVIRONMENT=/tmp/es-capacity-py310 uv run --locked --group analysis python scripts/check_package.py
+```
+
 The package check uses temporary build and installation directories and removes
-them on exit. Its analysis dependencies are constrained to `uv.lock`. A failure
+them on exit. Use `--out-dir NEW_DIRECTORY` to retain the exact validated wheel
+and source archive with a `SHA256SUMS` file after all checks pass; an existing
+directory is rejected. Its analysis dependencies are constrained to `uv.lock`. A failure
 returns a nonzero exit code and prints the failing command. CI checks the current
 software contracts; it does not rerun model evaluation or establish the study's
 scientific conclusions.
@@ -237,3 +383,7 @@ locked checkout environment above to reproduce the validated dependency versions
 Validate the wheel by installing it into a fresh environment and importing
 `es_capacity` from a directory outside this checkout. Editable-install tests alone
 do not establish that the built distribution includes the required modules.
+
+For versioned downloads, see the [release notes](CHANGELOG.md) and
+[GitHub release procedure](RELEASING.md). Releases are prepared in a PR, then
+tagged and published from the validated merged commit.

@@ -39,6 +39,8 @@ from pathlib import Path  # noqa: E402
 
 from es_capacity.analysis.ethics_commonsense import load_preds, summarize  # noqa: E402
 
+from es_capacity.cli.models import add_config_argument, validate_model_args  # noqa: E402
+
 from es_capacity.models import MODELS, resolve_model as resolve  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -54,6 +56,7 @@ def ensure_test_jsonl(out_root: Path, csv_path: Path | None) -> Path:
     if jsonl.is_file() and csv_path is None:
         return jsonl
 
+    out_root.mkdir(parents=True, exist_ok=True)
     src = csv_path
     if src is None:
         tar_path = out_root / "ethics.tar"
@@ -73,7 +76,6 @@ def ensure_test_jsonl(out_root: Path, csv_path: Path | None) -> Path:
         with src.open(newline="") as fh:
             rows = list(csv.DictReader(fh))
 
-    out_root.mkdir(parents=True, exist_ok=True)
     with jsonl.open("w") as fh:
         for row in rows:
             fh.write(json.dumps({
@@ -94,6 +96,8 @@ def write_task_yaml(out_root: Path, jsonl: Path) -> Path:
 
 def run_one_arm(arm: str, out_root: Path, task_yaml: Path, args) -> None:
     """Load one model, score every scenario, write results and samples."""
+    path = resolve(arm, config=args.config)
+
     import datasets
 
     datasets.disable_caching()
@@ -102,7 +106,6 @@ def run_one_arm(arm: str, out_root: Path, task_yaml: Path, args) -> None:
     from lm_eval.models.vllm_causallms import VLLM
     from lm_eval.tasks import TaskManager
 
-    path = resolve(arm)
     print(f"[{arm}] loading {path}", flush=True)
     t0 = time.time()
     lm = VLLM(
@@ -185,7 +188,9 @@ def main() -> None:
     ap.add_argument("--limit", type=float, default=None,
                     help="fraction or count of scenarios; for a quick check")
     ap.add_argument("--_arm", default=None, help=argparse.SUPPRESS)
+    add_config_argument(ap)
     args = ap.parse_args()
+    validate_model_args(ap, args)
 
     jsonl = ensure_test_jsonl(args.out, args.csv)
     task_yaml = write_task_yaml(args.out, jsonl)
@@ -212,6 +217,8 @@ def main() -> None:
         ]
         if args.limit is not None:
             cmd += ["--limit", str(args.limit)]
+        if args.config is not None:
+            cmd += ["--config", str(args.config)]
         if subprocess.run(cmd).returncode != 0:
             print(f"!! {arm} FAILED", flush=True)
             failed.append(arm)

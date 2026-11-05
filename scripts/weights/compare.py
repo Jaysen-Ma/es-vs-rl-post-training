@@ -42,8 +42,8 @@ from pathlib import Path
 import torch
 from safetensors import safe_open
 
-from es_capacity.config import models_dir
-from es_capacity.models import MODELS, local_checkpoint_dir
+from es_capacity.cli.models import add_config_argument
+from es_capacity.models import MODELS, ModelConfigurationError, resolve_model
 
 # Directory names are derived from the same model IDs as the evaluators.
 SCALES = {
@@ -417,19 +417,21 @@ def main() -> None:
     ap.add_argument("--scale", choices=sorted(SCALES), required=True)
     ap.add_argument("--arms", nargs="+", default=["ES", "RL"])
     ap.add_argument("--out", type=Path, default=Path("results/weights"))
+    add_config_argument(ap)
     args = ap.parse_args()
 
     spec = SCALES[args.scale]
-    model_root = models_dir()
-    base_dir = local_checkpoint_dir(f"{args.scale}-base", model_root)
-    if not base_dir.exists():
-        raise SystemExit(f"base checkpoint not found: {base_dir}\n"
-                         f"set MODELS_DIR (currently {model_root})")
+    try:
+        paths = {
+            arm: Path(resolve_model(f"{args.scale}-{arm}", config=args.config))
+            for arm in ["base", *args.arms]
+        }
+    except (ModelConfigurationError, FileNotFoundError) as exc:
+        ap.error(str(exc))
+    base_dir = paths["base"]
 
     for arm in args.arms:
-        arm_dir = local_checkpoint_dir(f"{args.scale}-{arm}", model_root)
-        if not arm_dir.exists():
-            raise SystemExit(f"checkpoint not found: {arm_dir}")
+        arm_dir = paths[arm]
         print(f"{args.scale} {arm}: {spec['base']} -> {spec[arm]}", flush=True)
         compare(base_dir, arm_dir, args.out / f"{args.scale}-{arm}",
                 f"{args.scale} {arm}")

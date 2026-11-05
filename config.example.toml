@@ -1,0 +1,19 @@
+# Download the checkpoints yourself using the links below, then set local paths.
+# Copy this file to config.toml; config.toml is ignored by Git.
+# Directories may be anywhere and may have any names. Relative paths are resolved
+# relative to this file. '~' is expanded; shell variables such as '$HOME' are not.
+# Keep only the entries you use and select those arms with --arms.
+
+[models]
+# https://huggingface.co/Qwen/Qwen2.5-1.5B
+"1.5B-base" = "/path/to/qwen-1.5b"
+# https://huggingface.co/zocrate/Qwen2.5-1.5B-ES-math
+"1.5B-ES" = "/path/to/es-1.5b"
+# https://huggingface.co/hkust-nlp/Qwen-2.5-1.5B-SimpleRL-Zoo
+"1.5B-RL" = "/path/to/grpo-1.5b"
+# https://huggingface.co/Qwen/Qwen2.5-7B
+"7B-base" = "/path/to/qwen-7b"
+# https://huggingface.co/zocrate/Qwen2.5-7B-ES-math
+"7B-ES" = "/path/to/es-7b"
+# https://huggingface.co/hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo
+"7B-RL" = "/path/to/grpo-7b"

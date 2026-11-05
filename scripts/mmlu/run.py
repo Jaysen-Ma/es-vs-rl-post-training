@@ -55,6 +55,8 @@ import sys  # noqa: E402
 import time  # noqa: E402
 from pathlib import Path  # noqa: E402
 
+from es_capacity.cli.models import add_config_argument, validate_model_args  # noqa: E402
+
 from es_capacity.models import MODELS, resolve_model as resolve  # noqa: E402
 
 TASK = "mmlu"
@@ -62,6 +64,8 @@ TASK = "mmlu"
 
 def run_one_arm(arm: str, out_root: Path, args) -> None:
     """Load one model, score all 57 MMLU subjects, write results and samples."""
+    path = resolve(arm, config=args.config)
+
     import datasets
 
     datasets.disable_caching()
@@ -69,7 +73,6 @@ def run_one_arm(arm: str, out_root: Path, args) -> None:
     from lm_eval import evaluator
     from lm_eval.models.vllm_causallms import VLLM
 
-    path = resolve(arm)
     print(f"[{arm}] loading {path}", flush=True)
     t0 = time.time()
     lm = VLLM(
@@ -155,7 +158,9 @@ def main() -> None:
     ap.add_argument("--limit", type=float, default=None,
                     help="fraction of each subject to score; for quick checks")
     ap.add_argument("--_arm", default=None, help=argparse.SUPPRESS)
+    add_config_argument(ap)
     args = ap.parse_args()
+    validate_model_args(ap, args)
 
     if args._arm is not None:
         run_one_arm(args._arm, args.out, args)
@@ -179,6 +184,8 @@ def main() -> None:
         ]
         if args.limit is not None:
             cmd += ["--limit", str(args.limit)]
+        if args.config is not None:
+            cmd += ["--config", str(args.config)]
         if subprocess.run(cmd).returncode != 0:
             print(f"!! {arm} FAILED", flush=True)
             failed.append(arm)

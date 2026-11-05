@@ -55,6 +55,8 @@ import sys  # noqa: E402
 import time  # noqa: E402
 from pathlib import Path  # noqa: E402
 
+from es_capacity.cli.models import add_config_argument, validate_model_args  # noqa: E402
+
 from es_capacity.models import MODELS, resolve_model as resolve  # noqa: E402
 
 TASK = "gpqa_diamond_zeroshot"
@@ -62,6 +64,8 @@ TASK = "gpqa_diamond_zeroshot"
 
 def run_one_arm(arm: str, seeds: list[int], out_root: Path, args) -> None:
     """Load one model once, evaluate it under each seed, write lm_eval-shaped output."""
+    path = resolve(arm, config=args.config)
+
     import datasets
 
     # Must precede task construction so answer-order shuffles are not cached.
@@ -70,7 +74,6 @@ def run_one_arm(arm: str, seeds: list[int], out_root: Path, args) -> None:
     from lm_eval import evaluator
     from lm_eval.models.vllm_causallms import VLLM
 
-    path = resolve(arm)
     print(f"[{arm}] loading {path}", flush=True)
     t0 = time.time()
     lm = VLLM(
@@ -128,7 +131,7 @@ def run_one_arm(arm: str, seeds: list[int], out_root: Path, args) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--arms", nargs="*", default=list(MODELS), help="arm names or paths")
+    ap.add_argument("--arms", nargs="*", default=list(MODELS), help="model arms or local checkpoint directories")
     ap.add_argument("--seeds", nargs="*", type=int, default=list(range(10)))
     ap.add_argument("--out", type=Path, default=Path("results/gpqa_results"))
     ap.add_argument("--dtype", default="bfloat16")
@@ -138,7 +141,9 @@ def main() -> None:
     ap.add_argument("--enforce-eager", action="store_true", default=True)
     # Internal: set when this process is the per-arm worker.
     ap.add_argument("--_arm", default=None, help=argparse.SUPPRESS)
+    add_config_argument(ap)
     args = ap.parse_args()
+    validate_model_args(ap, args)
 
     if args._arm is not None:
         run_one_arm(args._arm, args.seeds, args.out, args)
@@ -158,6 +163,8 @@ def main() -> None:
             "--batch-size", str(args.batch_size),
             "--seeds", *[str(s) for s in args.seeds],
         ]
+        if args.config is not None:
+            cmd += ["--config", str(args.config)]
         if subprocess.run(cmd).returncode != 0:
             print(f"!! {arm} FAILED", flush=True)
             failed.append(arm)
