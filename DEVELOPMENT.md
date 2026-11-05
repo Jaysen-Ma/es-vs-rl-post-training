@@ -194,10 +194,12 @@ repository. Making that workflow reproducible is a separate follow-up; the packa
 ## Review and validation
 
 Keep environment changes, code movement and scoring changes in separate commits.
-Tests use standard-library `unittest` and require no GPU libraries. The ETHICS
-tests check summary output on small synthetic predictions, command errors, and
-the boundary between analysis and model execution. Summary-output tests require
-the analysis dependencies; run the full suite with that group enabled:
+Tests use standard-library `unittest` with the analysis dependencies and require
+no GPU libraries. They cover configuration, synthetic summary outputs, and the
+boundary between analysis and model execution. Evaluation regressions also cover
+question-ID and sample-budget checks, complete ETHICS groups and paired IDs,
+matching GPQA result/sample files, fresh dataset preparation and stored histogram
+grids. Run the full suite with the analysis group enabled:
 
 ```bash
 uv lock --check
@@ -218,7 +220,11 @@ that the locked plotting environment can consume the committed summaries. These
 are installation smoke checks, not a full validation of statistical correctness.
 For the ETHICS extraction, also compare both summary CSVs byte for byte against
 the previous implementation using the same saved samples in disposable directories.
-Previously withheld scoring and sample-matching fixes remain a separate review.
+When changing evaluation analysis, rerun the saved-data checks in disposable
+directories: compare complete-input pass@k and ETHICS summaries before and after
+the change, validate GPQA run/sample matching, and check histogram coordinates
+against the serialized bin edges. Raw experiment files are not included in Git;
+CI covers these contracts with synthetic regression inputs.
 
 ## Continuous integration
 

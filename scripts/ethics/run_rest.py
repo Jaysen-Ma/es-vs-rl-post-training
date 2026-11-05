@@ -47,7 +47,7 @@ from pathlib import Path  # noqa: E402
 
 from es_capacity.config import ethics_data_dir  # noqa: E402
 from es_capacity.analysis.ethics_rest import (  # noqa: E402
-    DEFAULT_ARMS, TASKS, _mcnemar, _units, load_task, summarize,
+    DEFAULT_ARMS, GROUP_SIZE, TASKS, _mcnemar, _units, load_task, summarize,
 )
 
 from es_capacity.cli.models import add_config_argument, validate_model_args  # noqa: E402
@@ -61,7 +61,6 @@ CHOICES = {
     "virtue": ("no", "yes"),
     "util": ("no", "yes"),
 }
-GROUP_SIZE = {"deontology": 4, "justice": 4, "virtue": 5}
 
 
 def _rows(path: Path, fieldnames=None) -> list[dict]:
