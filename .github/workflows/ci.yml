@@ -15,9 +15,13 @@ concurrency:
 
 jobs:
   analysis-and-package:
-    name: Analysis and package (Python 3.12)
+    name: Analysis and package (Python ${{ matrix.python-version }})
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
     env:
       MPLBACKEND: Agg
     steps:
@@ -30,10 +34,11 @@ jobs:
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           version: "0.10.3"
+          python-version: ${{ matrix.python-version }}
           enable-cache: true
           cache-dependency-glob: uv.lock
 
-      - name: Install Python from .python-version
+      - name: Install the selected Python version
         run: uv python install
 
       - name: Install the locked analysis environment
@@ -54,3 +59,15 @@ jobs:
 
       - name: Build and test the installed distribution
         run: uv run --locked --group analysis python scripts/check_package.py
+
+  required-checks:
+    name: CI
+    if: ${{ always() }}
+    needs: analysis-and-package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require every Python job to succeed
+        env:
+          ANALYSIS_CHECKS_RESULT: ${{ needs.analysis-and-package.result }}
+        run: test "$ANALYSIS_CHECKS_RESULT" = success

@@ -235,20 +235,36 @@ without an open pull request does not trigger it. GitHub reports the result on
 the pull request; requiring that check before merging is a separate repository
 setting ([GitHub workflow events](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request)).
 
-CI uses Ubuntu 24.04, Python 3.12 from `.python-version`, and uv 0.10.3. It installs
-the locked analysis environment, runs the test suite and checks analysis command
-help. It then builds the source distribution and wheel, installs the wheel into
-a fresh temporary environment, and runs the tests from the source distribution
-against that installation. The package check also verifies that core command help
-works without analysis dependencies and that the analysis extra installs without
-GPU libraries. These checks use synthetic predictions and need no raw benchmark
-outputs or model checkpoints.
+CI uses Ubuntu 24.04 and uv 0.10.3, with separate jobs for Python 3.10 (the declared
+minimum) and Python 3.12 (the default selected by `.python-version`). Each job
+installs the locked analysis environment, runs the full test suite and checks
+analysis command help. It then builds the source distribution and wheel, installs
+the wheel into a fresh temporary environment, and runs the tests from the source
+distribution against that installation. Before adding the analysis extra, the
+package check runs the installed model-config command on a synthetic checkpoint
+directory, including the conditional TOML parser on Python 3.10. These checks
+need no raw benchmark outputs or downloaded model checkpoints.
+
+The final check named `CI` runs even if a matrix job fails or is skipped and
+succeeds only when every Python job succeeds. Use this stable check name in
+`main` branch protection, with the branch required to be up to date. Repository
+settings are managed separately from the workflow file. The matrix continues
+both Python jobs after a failure so their individual results remain visible.
 
 Run the commands in **Review and validation** above, followed by the same package
 check used in CI:
 
 ```bash
 uv run --locked --group analysis python scripts/check_package.py
+```
+
+To reproduce the minimum-version job without replacing this checkout's normal
+`.venv`, select a separate environment directory:
+
+```bash
+UV_PYTHON=3.10 UV_PROJECT_ENVIRONMENT=/tmp/es-capacity-py310 uv sync --locked --group analysis
+UV_PYTHON=3.10 UV_PROJECT_ENVIRONMENT=/tmp/es-capacity-py310 uv run --locked --group analysis python -m unittest discover -s tests -v
+UV_PYTHON=3.10 UV_PROJECT_ENVIRONMENT=/tmp/es-capacity-py310 uv run --locked --group analysis python scripts/check_package.py
 ```
 
 The package check uses temporary build and installation directories and removes

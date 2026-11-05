@@ -1,4 +1,4 @@
-"""Build and validate the distribution in isolation (Python 3.12 and uv)."""
+"""Build and validate the distribution in isolation (Python 3.10+ and uv)."""
 
 from pathlib import Path
 import shutil
@@ -46,7 +46,11 @@ def main():
         cli = bin_dir / ("es-capacity-ethics.exe" if sys.platform == "win32" else "es-capacity-ethics")
 
         # The core package and command help must work without optional libraries.
-        run(uv, "pip", "install", "--python", python, "--no-deps", wheel, cwd=work)
+        run(
+            uv, "pip", "install", "--python", python,
+            "--constraint", constraints, wheel, cwd=work,
+        )
+        run(uv, "pip", "check", "--python", python, cwd=work)
         run(python, "-I", "-c", """
 from pathlib import Path
 import importlib.util
@@ -59,6 +63,12 @@ assert importlib.util.find_spec('scipy') is None
         run(cli, "--help", cwd=work)
         models_cli = bin_dir / ("es-capacity-models.exe" if sys.platform == "win32" else "es-capacity-models")
         run(models_cli, "--help", cwd=work)
+        checkpoint = work / "checkpoint"
+        checkpoint.mkdir()
+        (checkpoint / "config.json").write_text("{}")
+        config = work / "models.toml"
+        config.write_text('[models]\n"7B-base" = "checkpoint"\n')
+        run(models_cli, "check", "--config", config, "--arms", "7B-base", cwd=work)
 
         # Exercise the wheel's extra while retaining the lockfile's versions.
         run(
