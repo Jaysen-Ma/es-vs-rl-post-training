@@ -4,12 +4,13 @@ import argparse
 from pathlib import Path
 
 from es_capacity.cli.models import add_config_argument, validate_model_args
-from es_capacity.evaluation import gpqa, mmlu
+from es_capacity.evaluation import ethics_commonsense, gpqa, mmlu
 from es_capacity.models import MODELS
 
 
-def _add_model_arguments(command, default_output, *, gpu_memory, max_model_len):
-    command.add_argument("--arms", nargs="+", choices=list(MODELS), default=list(MODELS))
+def _add_model_arguments(command, default_output, *, gpu_memory, max_model_len, default_arms=None):
+    command.add_argument("--arms", nargs="+", choices=list(MODELS),
+                         default=list(MODELS) if default_arms is None else list(default_arms))
     command.add_argument("--out", type=Path, default=default_output,
                          required=default_output is None, help="output root for evaluation files")
     command.add_argument("--dtype", default="bfloat16")
@@ -19,7 +20,7 @@ def _add_model_arguments(command, default_output, *, gpu_memory, max_model_len):
     add_config_argument(command)
 
 
-def main(argv=None, *, default_mmlu_output=None, default_gpqa_output=None):
+def main(argv=None, *, default_mmlu_output=None, default_gpqa_output=None, default_ethics_output=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     command = commands.add_parser(
@@ -46,15 +47,38 @@ def main(argv=None, *, default_mmlu_output=None, default_gpqa_output=None):
     command.add_argument("--batch-size", default="auto")
     command.add_argument("--enforce-eager", action="store_true", default=True,
                          help="retain the study's eager execution setting (enabled by default)")
+    command = commands.add_parser(
+        "ethics", help="evaluate ETHICS commonsense morality",
+        description="Evaluate commonsense scenarios using local task data. "
+        "Use es-capacity-ethics to analyse saved predictions.",
+    )
+    _add_model_arguments(command, default_ethics_output, gpu_memory=0.25, max_model_len=2048,
+                         default_arms=ethics_commonsense.DEFAULT_ARMS)
+    command.add_argument("--subset", choices=("commonsense",), required=True)
+    command.add_argument("--csv", type=Path, default=None,
+                         help="official cm_test.csv; otherwise reuse local data or download ethics.tar")
+    command.add_argument("--num-fewshot", type=int, default=0)
+    command.add_argument("--seed", type=int, default=0)
+    command.add_argument("--max-num-batched-tokens", type=int, default=2048)
+    command.add_argument("--batch-size", type=int, default=1024)
+    command.add_argument("--limit", type=float, default=None,
+                         help="fraction or count of scenarios for a quick check")
     args = parser.parse_args(argv)
     command = commands.choices[args.command]
     if args.command == "gpqa":
         if len(set(args.seeds)) != len(args.seeds) or any(seed < 0 for seed in args.seeds):
             command.error("--seeds must be distinct nonnegative integers")
     validate_model_args(command, args)
+    if args.command == "ethics" and args.csv is not None:
+        args.csv = args.csv.expanduser().resolve()
+        if not args.csv.is_file():
+            command.error(f"CSV file does not exist: {args.csv}")
     try:
-        {"mmlu": mmlu.run, "gpqa": gpqa.run}[args.command](args)
+        {"mmlu": mmlu.run, "gpqa": gpqa.run, "ethics": ethics_commonsense.run}[args.command](args)
     except ModuleNotFoundError as exc:
+        if args.command == "ethics" and exc.name == "scipy":
+            command.error("SciPy is required for ETHICS statistical summaries; install "
+                          "the package's '[analysis]' extra in the existing evaluation environment.")
         if exc.name is None or exc.name.split(".")[0] not in {
             "datasets", "lm_eval", "vllm", "torch", "transformers",
         }:

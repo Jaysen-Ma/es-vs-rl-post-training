@@ -240,6 +240,7 @@ class RunnerConfigurationTests(unittest.TestCase):
         for name in ("scripts/mmlu/run.py", "scripts/gpqa/run_sweep.py", "scripts/ethics/run.py", "scripts/ethics/run_rest.py"):
             with self.subTest(runner=name):
                 runner = load_runner(name)
+                implementation = sys.modules.get(runner.run_one_arm.__module__, runner)
                 argv = [name, "--arms", "7B-base", "--config", str(self.config), "--out", str(self.root / "out")]
                 if name.endswith("run_rest.py"):
                     argv += ["--data-dir", str(self.root)]
@@ -248,8 +249,8 @@ class RunnerConfigurationTests(unittest.TestCase):
                     stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
                     run = stack.enter_context(patch.object(runner.subprocess, "run", return_value=SimpleNamespace(returncode=0)))
                     for helper in ("ensure_test_jsonl", "write_task_yaml", "prepare", "summarize"):
-                        if hasattr(runner, helper):
-                            stack.enter_context(patch.object(runner, helper, return_value=self.root))
+                        if hasattr(implementation, helper):
+                            stack.enter_context(patch.object(implementation, helper, return_value=self.root))
                     runner.main()
                 command = run.call_args.args[0]
                 self.assertEqual(command[command.index("--config") + 1], str(self.config))
@@ -259,11 +260,12 @@ class RunnerConfigurationTests(unittest.TestCase):
         for name in ("scripts/mmlu/run.py", "scripts/gpqa/run_sweep.py", "scripts/ethics/run.py", "scripts/ethics/run_rest.py"):
             with self.subTest(runner=name):
                 runner = load_runner(name)
+                implementation = sys.modules.get(runner.run_one_arm.__module__, runner)
                 with contextlib.ExitStack() as stack:
                     stack.enter_context(patch.object(sys, "argv", [name, "--arms", "7B-base", "--config", str(config)]))
                     stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
                     run = stack.enter_context(patch.object(runner.subprocess, "run"))
-                    helpers = [stack.enter_context(patch.object(runner, helper)) for helper in ("ensure_test_jsonl", "prepare") if hasattr(runner, helper)]
+                    helpers = [stack.enter_context(patch.object(implementation, helper)) for helper in ("ensure_test_jsonl", "prepare") if hasattr(implementation, helper)]
                     with self.assertRaises(SystemExit) as raised:
                         runner.main()
                 self.assertEqual(raised.exception.code, 2)

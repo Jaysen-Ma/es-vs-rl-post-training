@@ -102,6 +102,20 @@ assert importlib.util.find_spec('scipy') is None
         run(evaluate_cli, "--help", cwd=work)
         run(evaluate_cli, "mmlu", "--help", cwd=work)
         run(evaluate_cli, "gpqa", "--help", cwd=work)
+        run(evaluate_cli, "ethics", "--help", cwd=work)
+        run(python, "-I", "-c", """
+import json
+from pathlib import Path
+from es_capacity.evaluation.ethics_commonsense import ensure_test_jsonl, write_task_yaml
+csv_path = Path('synthetic-ethics.csv')
+csv_path.write_text('label,input\\n0,A synthetic harmless scenario\\n1,A synthetic harmful scenario\\n')
+root = Path('ethics task: # example')
+jsonl = ensure_test_jsonl(root, csv_path)
+task = write_task_yaml(root, jsonl)
+line, = (line for line in task.read_text().splitlines() if line.startswith('    test: '))
+assert json.loads(line.split('test: ', 1)[1]) == str(jsonl.resolve())
+assert 'Question: Is this wrong?' in task.read_text()
+""", cwd=work)
         checkpoint = work / "checkpoint"
         checkpoint.mkdir()
         (checkpoint / "config.json").write_text("{}")

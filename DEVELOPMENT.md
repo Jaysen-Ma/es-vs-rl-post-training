@@ -2,8 +2,9 @@
 
 The `es_capacity` package provides the shared model registry, filesystem
 configuration and saved-result analysis for pass@k, ETHICS, MMLU, GPQA and weight
-distributions. MMLU and GPQA model runners are under `evaluation/`; ETHICS runners
-and checkpoint comparison remain in `scripts/`. Model execution requires
+distributions. MMLU, GPQA and ETHICS commonsense model runners are under
+`evaluation/`; the other ETHICS subsets and checkpoint comparison remain in
+`scripts/`. Model execution requires
 a separate GPU environment.
 
 ## Analysis environment
@@ -481,6 +482,57 @@ help and check checkpoint paths, while actual evaluation needs the separate
 model runtime. Tests simulate that runtime and check output compatibility with
 the analyzer; actual GPU inference and a fresh GPU environment remain unvalidated.
 
+## ETHICS commonsense evaluation
+
+`es-capacity-evaluate ethics --subset commonsense` runs the commonsense morality
+task in the existing GPU evaluation environment. It requires the model runtime
+described above and SciPy for the automatic statistical summary. The separate
+`es-capacity-ethics` command analyses saved predictions without loading models.
+
+```bash
+es-capacity-evaluate ethics --subset commonsense --config /data/models.toml --arms 7B-base 7B-ES 7B-RL --csv /data/ethics/commonsense/cm_test.csv --out /data/ethics-run
+```
+
+`--csv` selects an existing official test CSV with `label` and `input` columns.
+With no CSV selected, the runner reuses `OUTPUT/cm_test.jsonl` if present;
+otherwise it reuses or downloads the official `ethics.tar` archive under `--out`
+and reads its commonsense test split. Checkpoints are checked before data
+preparation or worker startup. An explicit missing CSV is also rejected before
+creating output. No dataset download is needed when supplying a CSV.
+
+Task preparation writes `cm_test.jsonl` and `ethics_cm.yaml` under `--out`. The
+template is included in the installed package at
+`src/es_capacity/evaluation/tasks/ethics_cm.yaml`; it does not depend on a file in
+the checkout. The generated YAML uses a quoted absolute data path. Its prompt,
+two choices (`no`, `yes`), label mapping and accuracy metric are unchanged.
+Scoring ranks those replies by likelihood rather than generating answers.
+
+The orchestration and worker live in
+`src/es_capacity/evaluation/ethics_commonsense.py`, with arguments handled in
+`src/es_capacity/cli/evaluate.py`. The default arms remain `1.5B-base`, `1.5B-ES`
+and `1.5B-RL`; select the 7B arms explicitly. The study defaults remain zero-shot,
+seed `0`, dtype `bfloat16`, batch size `1024`, maximum model length `2048`, maximum
+batched tokens `2048`, GPU memory utilization `0.25` and eager execution. `--limit`
+accepts the existing fraction or scenario-count setting.
+
+Each model runs in a separate process using the installed module and current
+interpreter. Workers reuse the prepared JSONL, disable dataset caching and
+record per-scenario outputs in `OUTPUT/ARM/samples.jsonl` with metrics and run
+metadata in `results.json`. Repeated runs replace those files. After the workers
+finish, the existing summary function writes `OUTPUT/summary.csv`, including
+accuracy, yes-rate, label-specific accuracies and paired McNemar comparisons.
+It retains other model arms already present in that output directory. Scoring,
+sample formats, result metadata and worker cleanup are preserved.
+
+The legacy `python scripts/ethics/run.py` command delegates to the installed CLI
+and retains its flags and default `results/ethics_results` directory anchored to
+the checkout root. The installed command requires `--out` and `--subset`. Importing
+the runner or showing help does not load the runtime or change environment
+variables. Core-package checks exercise task preparation from the installed wheel;
+worker tests simulate model scoring and pass the outputs through the analysis
+code. Actual GPU inference remains unvalidated. The other four subsets still use
+`scripts/ethics/run_rest.py` at this stage.
+
 ## Model and data paths
 
 The registry in `src/es_capacity/models.py` defines the same six model arms used
@@ -578,6 +630,7 @@ uv run --locked --group analysis es-capacity-gpqa --help
 uv run --locked --group analysis es-capacity-weights --help
 uv run --locked --group analysis es-capacity-evaluate mmlu --help
 uv run --locked --group analysis es-capacity-evaluate gpqa --help
+uv run --locked --group analysis es-capacity-evaluate ethics --help
 uv run --locked --group analysis python scripts/passk/analyze.py --help
 uv run --locked --group analysis python scripts/mmlu/tables.py --help
 uv run --locked --group analysis python scripts/gpqa/analyze.py --help

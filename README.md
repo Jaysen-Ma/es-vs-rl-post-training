@@ -175,7 +175,7 @@ or checkpoint-analysis environment described in [Development and reproduction](D
 
 ```bash
 es-capacity-evaluate mmlu --config config.toml --arms 7B-base 7B-ES 7B-RL --out /path/to/mmlu-run
-python scripts/ethics/run.py --config config.toml --arms 7B-base 7B-ES 7B-RL
+es-capacity-evaluate ethics --subset commonsense --config config.toml --arms 7B-base 7B-ES 7B-RL --out /path/to/ethics-run
 python scripts/ethics/run_rest.py --config config.toml --arms 7B-base 7B-ES 7B-RL --data-dir /path/to/ethics/ethics
 es-capacity-evaluate gpqa --config config.toml --arms 7B-base 7B-ES 7B-RL --out /path/to/gpqa-sweep
 python scripts/weights/compare.py --config config.toml --scale 7B
@@ -189,6 +189,12 @@ requirements](DEVELOPMENT.md#mmlu-model-evaluation). The legacy
 GPQA evaluation reuses each loaded model across answer-order seeds 0–9 by default.
 See [GPQA evaluation settings](DEVELOPMENT.md#gpqa-model-evaluation); the legacy
 `python scripts/gpqa/run_sweep.py` command remains available.
+
+For ETHICS commonsense, supply `--csv /path/to/cm_test.csv` to use an existing
+dataset, or let the runner prepare the official test data under `--out`. See
+[commonsense evaluation details](DEVELOPMENT.md#ethics-commonsense-evaluation).
+The old `scripts/ethics/run.py` command remains available; the other four subsets
+still use `scripts/ethics/run_rest.py`.
 
 Maths evaluation uses the external [limit-of-RLVR](https://github.com/Jaysen-Ma/limit-of-RLVR)
 harness. Install this package in that environment too, then set the harness path:

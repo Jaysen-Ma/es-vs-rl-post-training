@@ -6,6 +6,11 @@ An entry here can describe a release still being prepared.
 
 ## Unreleased
 
+- Package ETHICS commonsense evaluation with
+  `es-capacity-evaluate ethics --subset commonsense`, a bundled task template and
+  installed worker dispatch. Retain the legacy launcher and scoring/summary
+  behavior. Generated task YAML quotes its absolute data path; missing explicit
+  CSV files fail before preparation.
 - Package the GPQA seed-sweep runner with `es-capacity-evaluate gpqa`, installed
   worker dispatch and a compatibility launcher for `scripts/gpqa/run_sweep.py`.
   Model reuse, cache disabling, seed propagation, defaults and output formats
