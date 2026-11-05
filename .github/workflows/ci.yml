@@ -57,6 +57,9 @@ jobs:
           uv run --locked --group analysis es-capacity-mmlu --help
           uv run --locked --group analysis es-capacity-gpqa --help
           uv run --locked --group analysis es-capacity-weights --help
+          uv run --locked --group analysis es-capacity-evaluate --help
+          uv run --locked --group analysis es-capacity-evaluate mmlu --help
+          uv run --locked --group analysis python scripts/mmlu/run.py --help
           for script in scripts/passk/analyze.py scripts/mmlu/tables.py scripts/gpqa/analyze.py scripts/gpqa/tables.py scripts/weights/plot.py; do
             uv run --locked --group analysis python "$script" --help
           done

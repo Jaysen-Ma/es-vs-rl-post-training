@@ -2,8 +2,9 @@
 
 The `es_capacity` package provides the shared model registry, filesystem
 configuration and saved-result analysis for pass@k, ETHICS, MMLU, GPQA and weight
-distributions. Model runners and checkpoint comparison remain in `scripts/`.
-Model execution requires a separate GPU environment.
+distributions. The MMLU model runner is under `evaluation/`; the other model
+runners and checkpoint comparison remain in `scripts/`. Model execution requires
+a separate GPU environment.
 
 ## Analysis environment
 
@@ -146,7 +147,7 @@ new code should use the installed command with explicit paths.
 
 ## MMLU analysis
 
-`es-capacity-mmlu` consumes saved outputs from `scripts/mmlu/run.py`; it does not
+`es-capacity-mmlu` consumes saved outputs from the MMLU model runner; it does not
 load models or run the benchmark. The analysis functions live in
 `src/es_capacity/analysis/mmlu.py` and the command in `src/es_capacity/cli/mmlu.py`.
 With the analysis dependencies installed:
@@ -347,6 +348,77 @@ ETHICS statistical summaries still require SciPy in that environment. Keep using
 its interpreter for `python scripts/...` commands. Users evaluate downloaded
 checkpoints; no training step is required.
 
+## MMLU model evaluation
+
+The installed `es-capacity-evaluate mmlu` command runs models; the separate
+`es-capacity-mmlu` command analyses saved results. Install the package into the
+existing GPU evaluation environment described above. The core package and analysis
+extra do not install `lm_eval`, Hugging Face Datasets, vLLM or their GPU dependencies.
+No training step is needed.
+
+Download the desired checkpoints, configure their paths as described in
+[Model and data paths](#model-and-data-paths), then select the model arms and an
+explicit output directory:
+
+```bash
+es-capacity-models check --config /data/models.toml --arms 7B-base 7B-ES 7B-RL
+es-capacity-evaluate mmlu --config /data/models.toml --arms 7B-base 7B-ES 7B-RL --out /data/mmlu-run
+```
+
+Run these commands with the evaluation environment's executables. When no arms
+are selected, the runner evaluates all six registered arms. It checks every
+selected local checkpoint before creating the output directory or starting any
+worker. The explicit `--config` or `ES_CAPACITY_CONFIG` selection is resolved to
+an absolute path and passed to each worker. Checkpoint paths remain local and do
+not fall back to a Hub download. The benchmark itself may need to be downloaded
+by the evaluation harness on first use.
+
+The orchestration and worker live in `src/es_capacity/evaluation/mmlu.py`; argument
+handling lives in `src/es_capacity/cli/evaluate.py`. Each arm runs sequentially in
+a fresh process using the same Python interpreter and the installed module,
+without a script path in the checkout. The parent reports failures, continues
+with the remaining arms, and exits with status 1 if any worker failed. Each worker
+rechecks its selected checkpoint before loading the model runtime.
+
+The output remains `OUTPUT/ARM/results.json` and `OUTPUT/ARM/samples.jsonl`.
+Rerunning the same arm replaces those files. Results retain the harness metrics,
+sample counts and metadata for arm, checkpoint path, dtype, few-shot count, seed
+and elapsed scoring time. Samples retain their subject labels for paired analysis.
+After evaluation, analyse them with:
+
+```bash
+es-capacity-mmlu --results-dir /data/mmlu-run --out /data/mmlu-summary
+```
+
+Scoring still ranks the four answer letters by likelihood; it does not sample
+answers. The existing defaults are unchanged:
+
+| Setting | Default |
+|---|---|
+| Few-shot examples | `0` |
+| Seed | `0` |
+| Dtype | `bfloat16` |
+| Batch size | `1024` |
+| Maximum model length | `1280` |
+| Maximum batched tokens | `2048` |
+| GPU memory utilization | `0.25` |
+| Dataset limit | Full benchmark |
+
+Use `--limit 0.05` for a small fraction of each subject. Batch size remains an
+explicit integer: the original runner avoids the harness's automatic batching
+path. The length and token limits are study settings; a different few-shot count
+or model can require different limits. All seed settings, eager execution and
+sample logging remain unchanged. The worker defaults `VLLM_USE_FLASHINFER_SAMPLER`
+to `0` before runtime imports and retains an existing user value. Importing the
+package or showing help does not change the parent environment.
+
+The legacy `python scripts/mmlu/run.py` command delegates to the installed CLI
+and retains its flags and `results/mmlu_results` default output path. New installed
+commands require `--out`. Help and model preflight work with the core package.
+CI tests orchestration, simulated runtime calls, output formats and worker cleanup
+without loading model weights. Actual GPU inference and a fresh evaluation
+environment remain unvalidated in this packaging work.
+
 ## Model and data paths
 
 The registry in `src/es_capacity/models.py` defines the same six model arms used
@@ -375,7 +447,7 @@ Check paths before starting an evaluation:
 ```bash
 es-capacity-models check --config config.toml --arms 7B-base 7B-ES 7B-RL
 es-capacity-models path 7B-ES --config config.toml
-python scripts/mmlu/run.py --config config.toml --arms 7B-base 7B-ES 7B-RL
+es-capacity-evaluate mmlu --config config.toml --arms 7B-base 7B-ES 7B-RL --out /data/mmlu-run
 ```
 
 `check` reports every selected path as `OK` or `MISSING`. Missing checkpoint files
@@ -442,6 +514,7 @@ uv run --locked --group analysis es-capacity-models --help
 uv run --locked --group analysis es-capacity-mmlu --help
 uv run --locked --group analysis es-capacity-gpqa --help
 uv run --locked --group analysis es-capacity-weights --help
+uv run --locked --group analysis es-capacity-evaluate mmlu --help
 uv run --locked --group analysis python scripts/passk/analyze.py --help
 uv run --locked --group analysis python scripts/mmlu/tables.py --help
 uv run --locked --group analysis python scripts/gpqa/analyze.py --help

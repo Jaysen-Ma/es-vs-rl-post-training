@@ -174,12 +174,17 @@ Pass the same configuration to every workflow, using the appropriate evaluation
 or checkpoint-analysis environment described in [Development and reproduction](DEVELOPMENT.md):
 
 ```bash
-python scripts/mmlu/run.py --config config.toml --arms 7B-base 7B-ES 7B-RL
+es-capacity-evaluate mmlu --config config.toml --arms 7B-base 7B-ES 7B-RL --out /path/to/mmlu-run
 python scripts/ethics/run.py --config config.toml --arms 7B-base 7B-ES 7B-RL
 python scripts/ethics/run_rest.py --config config.toml --arms 7B-base 7B-ES 7B-RL --data-dir /path/to/ethics/ethics
 python scripts/gpqa/run_sweep.py --config config.toml --arms 7B-base 7B-ES 7B-RL
 python scripts/weights/compare.py --config config.toml --scale 7B
 ```
+
+MMLU evaluation runs one model per worker process; use `es-capacity-mmlu` to
+analyse the saved outputs. See [MMLU evaluation settings and environment
+requirements](DEVELOPMENT.md#mmlu-model-evaluation). The legacy
+`python scripts/mmlu/run.py` command remains available.
 
 Maths evaluation uses the external [limit-of-RLVR](https://github.com/Jaysen-Ma/limit-of-RLVR)
 harness. Install this package in that environment too, then set the harness path:

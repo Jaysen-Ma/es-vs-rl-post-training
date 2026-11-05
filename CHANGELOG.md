@@ -6,6 +6,11 @@ An entry here can describe a release still being prepared.
 
 ## Unreleased
 
+- Package the MMLU model runner under `evaluation/`, with
+  `es-capacity-evaluate mmlu` and a compatibility launcher for `scripts/mmlu/run.py`.
+  Workers launch the installed module; runtime imports and vLLM settings are
+  deferred to worker execution. Evaluation defaults, scoring and output formats
+  are preserved. Installed evaluation commands require an explicit output path.
 - Package saved weight-distribution analysis and rendering with
   `es-capacity-weights`, explicit CSV/output directories and a compatibility
   launcher for `scripts/weights/plot.py`. Plotting dependencies load only when
