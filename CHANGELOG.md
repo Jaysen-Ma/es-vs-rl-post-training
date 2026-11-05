@@ -4,6 +4,14 @@ Release availability and dates are recorded on the
 [GitHub Releases page](https://github.com/Jaysen-Ma/es-vs-rl-post-training/releases).
 An entry here can describe a release still being prepared.
 
+## Unreleased
+
+- Package saved-result MMLU analysis with `es-capacity-mmlu`, explicit input/output
+  directories and a compatibility launcher for `scripts/mmlu/tables.py`.
+- Reject duplicate MMLU sample keys and mismatched question sets before paired
+  comparisons. Valid-input scores, statistical calculations and output formats
+  are unchanged.
+
 ## 0.1.0
 
 The first packaged release provides tools for analysing saved evaluation outputs

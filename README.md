@@ -110,6 +110,15 @@ uv run --locked --group analysis es-capacity-ethics --results-dir results/ethics
 These commands require the raw per-arm sample files, which are excluded from Git,
 and replace the corresponding CSV summary in the supplied results directory.
 
+For MMLU tables from saved evaluator outputs:
+
+```bash
+uv run --locked --group analysis es-capacity-mmlu --results-dir /path/to/mmlu-run --out /path/to/mmlu-summary
+```
+
+This writes `scores.csv` in the output directory and prints a Markdown table.
+See [MMLU input requirements](DEVELOPMENT.md#mmlu-analysis).
+
 ### Evaluate downloaded models
 
 You do not need to train models to use this repository. If you already have the

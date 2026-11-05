@@ -2,6 +2,7 @@
 
 import argparse
 import hashlib
+import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -91,6 +92,8 @@ assert importlib.util.find_spec('scipy') is None
         run(models_cli, "--help", cwd=work)
         passk_cli = bin_dir / ("es-capacity-passk.exe" if sys.platform == "win32" else "es-capacity-passk")
         run(passk_cli, "--help", cwd=work)
+        mmlu_cli = bin_dir / ("es-capacity-mmlu.exe" if sys.platform == "win32" else "es-capacity-mmlu")
+        run(mmlu_cli, "--help", cwd=work)
         checkpoint = work / "checkpoint"
         checkpoint.mkdir()
         (checkpoint / "config.json").write_text("{}")
@@ -115,6 +118,22 @@ for name in ('torch', 'vllm', 'lm_eval', 'datasets', 'transformers'):
         for filename in ("synthetic_summary.json", "synthetic_passk.png"):
             if not (example_out / filename).is_file():
                 raise RuntimeError(f"installed pass@k example did not produce {filename}")
+        # Invoke the installed MMLU command from outside the checkout as well.
+        mmlu_inputs = work / "mmlu-inputs"
+        for arm, correct in (("7B-base", True), ("7B-ES", False)):
+            directory = mmlu_inputs / arm
+            directory.mkdir(parents=True)
+            (directory / "results.json").write_text(
+                json.dumps({"results": {"mmlu": {"acc,none": int(correct)}},
+                            "n-samples": {"mmlu": {"effective": 1}}})
+            )
+            (directory / "samples.jsonl").write_text(
+                json.dumps({"subtask": "mmlu", "doc_id": 0, "acc": int(correct)}) + "\n"
+            )
+        mmlu_out = work / "mmlu-output"
+        run(mmlu_cli, "--results-dir", mmlu_inputs, "--out", mmlu_out, cwd=work)
+        if not (mmlu_out / "scores.csv").is_file():
+            raise RuntimeError("installed MMLU command did not produce scores.csv")
         # Run the shipped tests and runner scripts against the installed wheel.
         # -I and an external cwd prevent imports from the development checkout.
         tests = source / "tests"

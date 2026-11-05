@@ -1,7 +1,7 @@
 # Development and reproduction
 
 The `es_capacity` package provides the shared model registry, filesystem
-configuration and saved-result pass@k/ETHICS analysis. Other analysis commands and
+configuration and saved-result pass@k/ETHICS/MMLU analysis. Other analysis commands and
 model runners remain in `scripts/`. Model execution requires a separate GPU
 environment.
 
@@ -48,7 +48,7 @@ setup should use `--locked`.
 | Paper's pass@k figure | `uv run --locked --group analysis python scripts/plot_hero.py` | The committed three-way summary JSON files |
 | pass@k example | `uv run --locked --group analysis es-capacity-passk --example --out /tmp/passk-example --plot` | Synthetic correctness scores bundled with the package |
 | pass@k summaries | `uv run --locked --group analysis es-capacity-passk --results-dir PATH --out OUTPUT --label base --label trained --label rl --baseline base --plot` | Scored per-question evaluation JSONL files under `PATH/LABEL/BENCHMARK/` |
-| MMLU tables | `uv run --locked --group analysis python scripts/mmlu/tables.py --sweep-root PATH` | Saved MMLU results and sample files |
+| MMLU tables | `uv run --locked --group analysis es-capacity-mmlu --results-dir PATH --out OUTPUT` | `PATH/ARM/results.json` and `PATH/ARM/samples.jsonl` for each arm |
 | ETHICS commonsense summary | `uv run --locked --group analysis es-capacity-ethics --results-dir PATH --subset commonsense` | `PATH/ARM/samples.jsonl` for each model arm |
 | Other four ETHICS summaries | `uv run --locked --group analysis es-capacity-ethics --results-dir PATH --subset rest` | `PATH/ARM/rest_samples.jsonl` for each model arm |
 | GPQA summaries | `uv run --locked --group analysis python scripts/gpqa/analyze.py --sweep-root PATH --out OUTPUT` | Saved GPQA seed-sweep outputs |
@@ -143,6 +143,50 @@ The old `python scripts/passk/analyze.py --run-tag RUN --label ...` interface is
 compatibility launcher. It still reads `results/RUN/` relative to the checkout and
 defaults to writing summaries there. It delegates to the same packaged functions;
 new code should use the installed command with explicit paths.
+
+## MMLU analysis
+
+`es-capacity-mmlu` consumes saved outputs from `scripts/mmlu/run.py`; it does not
+load models or run the benchmark. The analysis functions live in
+`src/es_capacity/analysis/mmlu.py` and the command in `src/es_capacity/cli/mmlu.py`.
+With the analysis dependencies installed:
+
+```bash
+es-capacity-mmlu --results-dir /data/mmlu-run --out /data/mmlu-summary
+```
+
+The input directory contains one subdirectory per model arm:
+
+```text
+mmlu-run/
+  7B-base/results.json
+  7B-base/samples.jsonl
+  7B-ES/results.json
+  7B-ES/samples.jsonl
+```
+
+Each `results.json` supplies the aggregate `results.mmlu["acc,none"]`, effective
+sample counts under `n-samples`, the `group_subtasks` hierarchy and optional
+configuration metadata. Each sample line supplies `subtask`, `doc_id` and `acc`.
+All directories with `results.json` are included and must have `samples.jsonl`.
+Question keys are `(subtask, doc_id)`; record order can differ between arms.
+Duplicate keys and mismatched question sets in a trained/base pair are errors.
+
+The command creates `--out` if needed and replaces only its `scores.csv`, leaving
+the input files untouched when output is separate. It prints the study's existing
+zero-shot Markdown table. The CSV retains accuracy, counts, gained/lost questions,
+raw and adjusted McNemar p-values, few-shot count and elapsed time. The study's
+six arms come first; additional arm directories follow alphabetically. A trained
+arm is compared with the `SCALE-base` arm inferred from its name when present.
+Bonferroni correction covers the trained/base comparisons available in that run.
+Overall accuracies, statistical calculations, rounding and table format are
+unchanged. Use the CSV metadata when interpreting runs with other shot counts.
+
+The legacy `python scripts/mmlu/tables.py --sweep-root PATH` launcher delegates
+to the packaged command and still writes `PATH/scores.csv`. Without that argument
+it uses `results/mmlu_results` relative to the current directory. New commands
+should use the installed entry point with explicit input/output paths. Saved MMLU
+inputs are excluded from Git; CI exercises synthetic results and samples.
 
 ## Evaluation environments and study setup references
 
@@ -280,6 +324,7 @@ uv sync --locked --group analysis
 uv run --locked --group analysis python -m unittest discover -s tests -v
 uv run --locked --group analysis es-capacity-ethics --help
 uv run --locked --group analysis es-capacity-models --help
+uv run --locked --group analysis es-capacity-mmlu --help
 uv run --locked --group analysis python scripts/passk/analyze.py --help
 uv run --locked --group analysis python scripts/mmlu/tables.py --help
 uv run --locked --group analysis python scripts/gpqa/analyze.py --help
