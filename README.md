@@ -64,6 +64,15 @@ These results show that maths-only evolutionary post-training can improve mathem
 
 ## Evaluation
 
+For analysis of saved outputs, install [uv](https://docs.astral.sh/uv/getting-started/installation/) and use the locked Python environment:
+
+```bash
+uv sync --locked --group analysis
+uv run --locked --group analysis python scripts/plot_hero.py
+```
+
+This regenerates the pass@k figure from committed summaries. Model evaluation and training require separate GPU environments. See [Development and reproduction](DEVELOPMENT.md) for input requirements, environment boundaries and the recorded external repository revisions.
+
 ```bash
 cp config.example.sh config.sh   # fill in MATH_EVAL_DIR and model paths
 scripts/passk/run_eval.sh QWEN25_7B_BASE base my-run   # pass@k (needs Jaysen-Ma/limit-of-RLVR, branch fix/math-equal-timeout-bypass)

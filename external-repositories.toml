@@ -1,0 +1,22 @@
+schema_version = 1
+recorded_on = "2026-11-05"
+# These are the local checkout revisions inspected during the packaging work.
+# They are reference points for setup, not verified historical run provenance.
+
+[[repositories]]
+name = "es-at-scale"
+role = "ES training"
+url = "https://github.com/Jaysen-Ma/es-at-scale.git"
+revision = "2540156a0e5213e64c4a3cea82bd48d80685fc4e"
+branch_hint = "fix/multi-engine-colocation"
+source = "local checkout HEAD; no tracked modifications"
+historical_run_revision_verified = false
+
+[[repositories]]
+name = "limit-of-RLVR"
+role = "Mathematical generation and grading"
+url = "https://github.com/Jaysen-Ma/limit-of-RLVR.git"
+revision = "569825a3f8c68dc6d25415917498db634ea73bdb"
+branch_hint = "fix/math-equal-timeout-bypass"
+source = "local checkout HEAD; no tracked modifications"
+historical_run_revision_verified = false

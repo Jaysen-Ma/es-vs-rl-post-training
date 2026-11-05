@@ -1,0 +1,25 @@
+[project]
+name = "es-capacity"
+version = "0.1.0"
+description = "Analysis of reasoning coverage and behavioural changes after ES and GRPO post-training."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "Jaysen Ma" }]
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/Jaysen-Ma/es-vs-rl-post-training"
+
+[dependency-groups]
+# Summaries, statistical comparisons and figures from saved evaluation outputs.
+analysis = [
+    "matplotlib>=3.8,<4",
+    "numpy>=1.26,<3",
+    "scipy>=1.11,<2",
+]
+
+[tool.uv]
+# This first migration step manages the existing scripts' environment.
+# An importable package and build backend will follow in a separate commit.
+package = false
