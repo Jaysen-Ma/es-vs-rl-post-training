@@ -37,29 +37,13 @@ import time  # noqa: E402
 import urllib.request  # noqa: E402
 from pathlib import Path  # noqa: E402
 
+from es_capacity.models import MODELS, resolve_model as resolve  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[2]
 TASK_NAME = "ethics_cm"
 TASK_TEMPLATE = Path(__file__).resolve().parent / "ethics_cm.yaml"
 ETHICS_URL = "https://people.eecs.berkeley.edu/~hendrycks/ethics.tar"
-
-MODELS = {
-    "1.5B-base": "Qwen/Qwen2.5-1.5B",
-    "1.5B-ES": "zocrate/Qwen2.5-1.5B-ES-math",
-    "1.5B-RL": "hkust-nlp/Qwen-2.5-1.5B-SimpleRL-Zoo",
-    "7B-base": "Qwen/Qwen2.5-7B",
-    "7B-ES": "zocrate/Qwen2.5-7B-ES-math",
-    "7B-RL": "hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo",
-}
-
-MODELS_DIR = Path(os.environ.get("MODELS_DIR", Path.home() / "models"))
 DEFAULT_ARMS = ["1.5B-base", "1.5B-ES", "1.5B-RL"]
-
-
-def resolve(arm: str) -> str:
-    """Local mirror of this arm's checkpoint if present, else its Hub id."""
-    hub_id = MODELS.get(arm, arm)
-    local = MODELS_DIR / hub_id.split("/")[-1]
-    return str(local) if (local / "config.json").is_file() else hub_id
 
 
 def ensure_test_jsonl(out_root: Path, csv_path: Path | None) -> Path:

@@ -71,7 +71,7 @@ uv sync --locked --group analysis
 uv run --locked --group analysis python scripts/plot_hero.py
 ```
 
-This regenerates the pass@k figure from committed summaries. Model evaluation and training require separate GPU environments. See [Development and reproduction](DEVELOPMENT.md) for input requirements, environment boundaries and the recorded external repository revisions.
+This installs the shared package and regenerates the pass@k figure from committed summaries. Model evaluation and training require separate GPU environments; install the shared package into an existing environment with `python -m pip install --no-deps -e .`. See [Development and reproduction](DEVELOPMENT.md) for input requirements, environment boundaries and the recorded external repository revisions.
 
 ```bash
 cp config.example.sh config.sh   # fill in MATH_EVAL_DIR and model paths

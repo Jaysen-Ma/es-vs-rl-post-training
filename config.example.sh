@@ -22,3 +22,12 @@ export QWEN25_1_5B_RL=/path/to/models/Qwen-2.5-1.5B-SimpleRL-Zoo
 export QWEN25_7B_BASE=/path/to/models/Qwen2.5-7B
 export QWEN25_7B_ES=/path/to/models/Qwen2.5-7B-ES-math
 export QWEN25_7B_RL=/path/to/models/Qwen-2.5-7B-SimpleRL-Zoo
+
+# Python evaluation runners use MODELS_DIR for local mirrors (default ~/models).
+# They do not source this file automatically: export these values in your shell
+# or source config.sh before running a Python command.
+# export MODELS_DIR=/path/to/models
+
+# Unpacked ETHICS subsets; run_rest.py also accepts --data-dir, which takes
+# precedence over this variable. The default remains /tmp/ethics/ethics.
+# export ETHICS_DATA_DIR=/path/to/ethics/ethics

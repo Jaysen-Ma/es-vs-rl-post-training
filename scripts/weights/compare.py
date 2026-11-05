@@ -34,7 +34,6 @@ import argparse
 import csv
 import json
 import math
-import os
 import re
 import time
 from collections import defaultdict
@@ -43,22 +42,14 @@ from pathlib import Path
 import torch
 from safetensors import safe_open
 
-MODELS_DIR = Path(os.environ.get("MODELS_DIR", Path.home() / "models"))
+from es_capacity.config import models_dir
+from es_capacity.models import MODELS, local_checkpoint_dir
 
-# Checkpoint names as they sit under MODELS_DIR. Qwen2.5-1.5B ties its output
-# head to the embedding and Qwen2.5-7B does not, which is handled below rather
-# than special-cased per scale.
+# Directory names are derived from the same model IDs as the evaluators.
 SCALES = {
-    "1.5B": {
-        "base": "Qwen2.5-1.5B",
-        "ES": "Qwen2.5-1.5B-ES-math",
-        "RL": "Qwen-2.5-1.5B-SimpleRL-Zoo",
-    },
-    "7B": {
-        "base": "Qwen2.5-7B",
-        "ES": "Qwen2.5-7B-ES-math",
-        "RL": "Qwen-2.5-7B-SimpleRL-Zoo",
-    },
+    scale: {arm: MODELS[f"{scale}-{arm}"].split("/")[-1]
+            for arm in ("base", "ES", "RL")}
+    for scale in dict.fromkeys(name.split("-")[0] for name in MODELS)
 }
 
 SERIES = ("base", "trained", "delta")
@@ -429,13 +420,14 @@ def main() -> None:
     args = ap.parse_args()
 
     spec = SCALES[args.scale]
-    base_dir = MODELS_DIR / spec["base"]
+    model_root = models_dir()
+    base_dir = local_checkpoint_dir(f"{args.scale}-base", model_root)
     if not base_dir.exists():
         raise SystemExit(f"base checkpoint not found: {base_dir}\n"
-                         f"set MODELS_DIR (currently {MODELS_DIR})")
+                         f"set MODELS_DIR (currently {model_root})")
 
     for arm in args.arms:
-        arm_dir = MODELS_DIR / spec[arm]
+        arm_dir = local_checkpoint_dir(f"{args.scale}-{arm}", model_root)
         if not arm_dir.exists():
             raise SystemExit(f"checkpoint not found: {arm_dir}")
         print(f"{args.scale} {arm}: {spec['base']} -> {spec[arm]}", flush=True)

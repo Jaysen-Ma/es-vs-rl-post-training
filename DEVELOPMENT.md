@@ -1,8 +1,8 @@
 # Development and reproduction
 
-The first packaging step defines an environment for the existing analysis
-scripts. The code is still run from this checkout; it is not yet an installable
-Python library. Model execution and ES training require separate environments.
+The `es_capacity` package provides the shared model registry and filesystem
+configuration. Experiment and analysis commands remain in `scripts/` and are run
+from this checkout. Model execution and ES training require separate environments.
 
 ## Analysis environment
 
@@ -18,6 +18,9 @@ Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and use Py
 uv sync --locked --group analysis
 uv run --locked --group analysis python scripts/passk/analyze.py --help
 ```
+
+`uv sync` installs `es_capacity` in editable mode, so changes under
+`src/es_capacity/` are available to the existing script commands.
 
 `pyproject.toml` declares the dependencies; `uv.lock` records exact resolved
 versions and artifact hashes, including transitive dependencies. `--locked`
@@ -87,24 +90,61 @@ Hugging Face Datasets and vLLM. They are not covered by `uv.lock` yet. Setup for
 those workflows must be validated on suitable hardware before it is described
 as reproducible.
 
-For the mathematical harness, copy `config.example.sh` to `config.sh` and set
-`MATH_EVAL_DIR` and the model locations. The other runners currently use
-`MODELS_DIR` or Hugging Face model IDs. ETHICS' four additional subsets expect an
-unpacked dataset under `/tmp/ethics/ethics`; the shared-path refactor will make
-that explicit and configurable.
+Install the shared package into an existing GPU environment with:
+
+```bash
+python -m pip install --no-deps -e .
+```
+
+The core package uses only the Python standard library. This command adds the
+shared configuration without installing or upgrading the GPU runtime. Keep using
+the interpreter from that environment for `python scripts/...` commands.
+
+## Model and data paths
+
+The registry in `src/es_capacity/models.py` defines the same six model arms used
+in saved outputs. MMLU, GPQA, ETHICS and checkpoint analysis share these definitions.
+The existing `RL` labels are retained for compatibility.
+
+- `MODELS_DIR` selects the local checkpoint mirror; the default is `~/models`.
+  Evaluation runners use a checkpoint under that directory if its `config.json`
+  exists, and otherwise use its Hugging Face model ID. The previous basename
+  matching rule is retained for custom IDs and paths supplied through `--arms`.
+- Checkpoint analysis requires local files and reports a missing checkpoint
+  rather than downloading one.
+- `ETHICS_DATA_DIR` selects the unpacked directory containing `deontology/`,
+  `justice/`, `virtue/` and `utilitarianism/`. The old `/tmp/ethics/ethics` default
+  is retained. `scripts/ethics/run_rest.py --data-dir PATH` takes precedence and
+  is forwarded to worker processes.
+
+These environment variables are read when paths are requested. For example:
+
+```bash
+export MODELS_DIR=/path/to/models
+export ETHICS_DATA_DIR=/path/to/ethics/ethics
+python scripts/ethics/run_rest.py --arms 7B-base --data-dir /another/ethics/ethics
+```
+
+The Python scripts do not automatically source `config.sh`. Export variables in
+the shell or explicitly source the file. The mathematical harness remains a shell
+wrapper: copy `config.example.sh` to `config.sh` and set `MATH_EVAL_DIR` and its
+per-model variables as before. Output-directory defaults are unchanged in this
+step; the shared package does not infer a repository root from its installation.
 
 The write-up's grader-audit workflow is currently excluded from the published
-repository. Making that workflow reproducible is a separate follow-up; this
-commit does not add the ignored local scripts or raw benchmark text.
+repository. Making that workflow reproducible is a separate follow-up; the packaging work does not add the ignored local scripts or raw benchmark text.
 
 ## Review and validation
 
 Keep environment changes, code movement and scoring changes in separate commits.
-Before committing an environment update:
+Configuration tests use standard-library `unittest` and require no GPU libraries.
+They are separate from the previously withheld scoring fixes and regression tests.
+Before committing a configuration or environment update:
 
 ```bash
 uv lock --check
 uv sync --locked --group analysis
+uv run --locked python -m unittest discover -s tests -v
 uv run --locked --group analysis python scripts/passk/analyze.py --help
 uv run --locked --group analysis python scripts/mmlu/tables.py --help
 uv run --locked --group analysis python scripts/gpqa/analyze.py --help
@@ -118,3 +158,19 @@ that the locked plotting environment can consume the committed summaries. These
 are installation smoke checks, not validation of statistical correctness. Tests
 for the scoring and sample-matching rules will be reviewed separately from this
 environment change.
+
+## Package builds
+
+`uv build` produces a wheel and a source distribution in `dist/`, using the pinned
+Hatchling build backend. The wheel contains the shared package and its metadata;
+model weights, evaluation outputs and the write-up are excluded. The source
+distribution also includes the script entry points, tests and setup documentation.
+It can rebuild the wheel without a Git checkout.
+
+```bash
+uv build
+```
+
+Validate the wheel by installing it into a fresh environment and importing
+`es_capacity` from a directory outside this checkout. Editable-install tests alone
+do not establish that the built distribution includes the required modules.

@@ -21,8 +21,9 @@ Commonsense samples are left untouched. This writes rest_samples.jsonl per arm
 and rest_summary.csv (example accuracy, positive-word rate, set accuracy, exact
 McNemar on sets vs. the arm's own base) under results/ethics_results/.
 
-Data: needs Hendrycks' ethics.tar unpacked so that /tmp/ethics/ethics/<subset>/
-exists (run.py downloads the tar into results/ethics_results/ethics.tar):
+Data: needs Hendrycks' ethics.tar unpacked so that DATA_DIR/<subset>/ exists.
+Set --data-dir or ETHICS_DATA_DIR; the default is /tmp/ethics/ethics.
+run.py downloads the tar into results/ethics_results/ethics.tar:
     mkdir -p /tmp/ethics && tar -xf ethics.tar -C /tmp/ethics
 
 Usage:
@@ -44,11 +45,10 @@ import sys  # noqa: E402
 import time  # noqa: E402
 from pathlib import Path  # noqa: E402
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from run import MODELS, resolve  # noqa: E402
+from es_capacity.config import ethics_data_dir  # noqa: E402
+from es_capacity.models import resolve_model as resolve  # noqa: E402
 
-ETHICS_DIR = Path("/tmp/ethics/ethics")
+ROOT = Path(__file__).resolve().parents[2]
 TASKS = ["deontology", "justice", "virtue", "util"]
 CHOICES = {
     "deontology": ("unreasonable", "reasonable"),
@@ -65,17 +65,19 @@ def _rows(path: Path, fieldnames=None) -> list[dict]:
         return list(csv.DictReader(fh, fieldnames=fieldnames))
 
 
-def prepare(out_root: Path) -> Path:
+def prepare(out_root: Path, data_dir: Path | None = None) -> Path:
     """Write one JSONL per task and a yaml directory lm_eval can load."""
+    if data_dir is None:
+        data_dir = ethics_data_dir()
     task_dir = out_root / "rest_tasks"
     task_dir.mkdir(parents=True, exist_ok=True)
     data = out_root / "rest_data"
     data.mkdir(parents=True, exist_ok=True)
 
-    deon = _rows(ETHICS_DIR / "deontology" / "deontology_test.csv")
-    justice = _rows(ETHICS_DIR / "justice" / "justice_test.csv")
-    virtue = _rows(ETHICS_DIR / "virtue" / "virtue_test.csv")
-    util = _rows(ETHICS_DIR / "utilitarianism" / "util_test.csv",
+    deon = _rows(data_dir / "deontology" / "deontology_test.csv")
+    justice = _rows(data_dir / "justice" / "justice_test.csv")
+    virtue = _rows(data_dir / "virtue" / "virtue_test.csv")
+    util = _rows(data_dir / "utilitarianism" / "util_test.csv",
                  fieldnames=["activity", "baseline"])
 
     docs = {
@@ -338,6 +340,8 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--arms", nargs="*", default=DEFAULT_ARMS)
     ap.add_argument("--out", type=Path, default=ROOT / "results" / "ethics_results")
+    ap.add_argument("--data-dir", type=Path, default=ethics_data_dir(),
+                    help="unpacked ETHICS subsets (ETHICS_DATA_DIR or /tmp/ethics/ethics)")
     ap.add_argument("--dtype", default="bfloat16")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--gpu-memory-utilization", type=float, default=0.25)
@@ -348,9 +352,10 @@ def main() -> None:
     ap.add_argument("--_arm", default=None, help=argparse.SUPPRESS)
     args = ap.parse_args()
 
-    if not ETHICS_DIR.is_dir():
-        raise SystemExit(f"missing {ETHICS_DIR}; unpack Hendrycks ethics.tar there")
-    task_dir = prepare(args.out)
+    if not args.data_dir.is_dir():
+        raise SystemExit(f"missing {args.data_dir}; set --data-dir or ETHICS_DATA_DIR "
+                         "to the unpacked ETHICS directory")
+    task_dir = prepare(args.out, args.data_dir)
 
     if args._arm is not None:
         run_one_arm(args._arm, args.out, task_dir, args)
@@ -363,6 +368,7 @@ def main() -> None:
             sys.executable, "-u", __file__,
             "--_arm", arm,
             "--out", str(args.out),
+            "--data-dir", str(args.data_dir),
             "--dtype", args.dtype,
             "--seed", str(args.seed),
             "--gpu-memory-utilization", str(args.gpu_memory_utilization),
