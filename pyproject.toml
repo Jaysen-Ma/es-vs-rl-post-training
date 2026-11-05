@@ -21,6 +21,7 @@ es-capacity-models = "es_capacity.cli.models:main"
 es-capacity-passk = "es_capacity.cli.passk:main"
 es-capacity-mmlu = "es_capacity.cli.mmlu:main"
 es-capacity-gpqa = "es_capacity.cli.gpqa:main"
+es-capacity-weights = "es_capacity.cli.weights:main"
 
 [project.optional-dependencies]
 # Summaries, statistical comparisons and figures from saved evaluation outputs.

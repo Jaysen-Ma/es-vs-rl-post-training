@@ -6,6 +6,10 @@ An entry here can describe a release still being prepared.
 
 ## Unreleased
 
+- Package saved weight-distribution analysis and rendering with
+  `es-capacity-weights`, explicit CSV/output directories and a compatibility
+  launcher for `scripts/weights/plot.py`. Plotting dependencies load only when
+  needed; histogram calculations and figure styling are preserved.
 - Package GPQA seed-sweep summaries and Markdown tables under
   `es-capacity-gpqa check`, `summarize` and `tables`, retaining the existing script
   launchers. Valid study inputs retain their CSV and table outputs.

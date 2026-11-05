@@ -129,6 +129,15 @@ uv run --locked --group analysis es-capacity-gpqa tables --results-dir /path/to/
 Use `es-capacity-gpqa check --results-dir PATH` to validate a sweep without writing
 outputs. See [GPQA input and output details](DEVELOPMENT.md#gpqa-analysis).
 
+To plot saved weight-comparison CSVs without loading checkpoints:
+
+```bash
+uv run --locked --group analysis es-capacity-weights --scale 7B --results-dir /path/to/weight-comparisons --out /path/to/weight-figures
+```
+
+This writes the five weight-distribution figures. See
+[required CSVs and output filenames](DEVELOPMENT.md#weight-distribution-figures).
+
 ### Evaluate downloaded models
 
 You do not need to train models to use this repository. If you already have the

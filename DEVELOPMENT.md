@@ -1,9 +1,9 @@
 # Development and reproduction
 
 The `es_capacity` package provides the shared model registry, filesystem
-configuration and saved-result pass@k, ETHICS, MMLU and GPQA analysis. Other analysis commands and
-model runners remain in `scripts/`. Model execution requires a separate GPU
-environment.
+configuration and saved-result analysis for pass@k, ETHICS, MMLU, GPQA and weight
+distributions. Model runners and checkpoint comparison remain in `scripts/`.
+Model execution requires a separate GPU environment.
 
 ## Analysis environment
 
@@ -53,7 +53,7 @@ setup should use `--locked`.
 | Other four ETHICS summaries | `uv run --locked --group analysis es-capacity-ethics --results-dir PATH --subset rest` | `PATH/ARM/rest_samples.jsonl` for each model arm |
 | GPQA summaries | `uv run --locked --group analysis es-capacity-gpqa summarize --results-dir PATH --out OUTPUT --pair 7B-ES:7B-base` | Saved GPQA seed-sweep results and samples |
 | GPQA tables | `uv run --locked --group analysis es-capacity-gpqa tables --results-dir PATH` | Reduced GPQA CSV files |
-| Weight-change plots | `uv run --locked --group analysis python scripts/weights/plot.py --scale 7B --dir PATH` | Weight-statistics and histogram CSV files |
+| Weight-change plots | `uv run --locked --group analysis es-capacity-weights --scale 7B --results-dir PATH --out OUTPUT` | `PATH/SCALE-ES/` and `PATH/SCALE-RL/`, each containing `stats.csv` and `hist.csv` |
 
 The figure command overwrites `writeup/figures/hero_passk.png` and
 `writeup/figures/hero_passk.pdf`. Its numerical inputs are committed, but rendered
@@ -246,6 +246,63 @@ and `--check` forms delegate to the installed command. The old
 `results/gpqa` default. New commands should use the installed entry point with
 explicit paths. None of these commands requires model configuration.
 
+## Weight-distribution figures
+
+`es-capacity-weights` plots the saved CSV outputs of `scripts/weights/compare.py`.
+It does not open checkpoints or require model configuration, PyTorch or a GPU.
+Install the analysis dependencies, then select the CSV root and a separate output
+directory:
+
+```bash
+es-capacity-weights --scale 7B --results-dir /data/weight-comparisons --out /data/weight-figures
+```
+
+Inputs follow this layout, with the corresponding `1.5B-ES` and `1.5B-RL`
+directories for `--scale 1.5B`:
+
+```text
+weight-comparisons/
+  7B-ES/stats.csv
+  7B-ES/hist.csv
+  7B-RL/stats.csv
+  7B-RL/hist.csv
+```
+
+`stats.csv` records parameter count, mean, standard deviation, extrema, excess
+kurtosis, tail and zero-fraction statistics, keyed by `series`, `grouping` and
+`group`. Series are `base`, `trained` and `delta`; groupings include pooled weights,
+module type and layer depth. `hist.csv` records the nonempty bins and serialized
+underflow/overflow edges on the 512-bin grid. All four files are required. The
+plots need nonzero-variance pooled distributions and at least one shared module
+distribution for ES and RL. Missing or incomplete required groups fail before
+creating the output directory.
+
+The command creates `--out` if needed and writes these five PNGs, replacing
+existing files of the same names:
+
+- `raw_weights_SCALE.png`: base and post-trained parameter distributions.
+- `delta_pooled_SCALE.png`: pooled changes on shared and zoomed axes.
+- `weight_change_SCALE.png`: the standalone shared-axis figure used in the README.
+- `delta_by_module_SCALE.png`: changes and their sizes by module.
+- `delta_by_depth_SCALE.png`: change size against transformer layer index.
+
+Histogram reconstruction and numerical helpers live in
+`src/es_capacity/analysis/weights.py`. Figure rendering lives in `weight_plots.py`
+and uses Matplotlib's headless Agg backend; the CLI is in
+`src/es_capacity/cli/weights.py`. NumPy is loaded only when histogram calculations
+need it, and Matplotlib only for rendering. Command help works without either.
+
+Bin coordinates still come from the saved edges, including the shared base and
+trained grid. Counts, density normalization, rebinning, axes and styling are
+unchanged. Input CSVs remain untouched. Figure pixels can vary across plotting
+environments; use the locked environment for comparisons. The full saved CSVs are
+excluded from Git, while tests render synthetic distributions.
+
+The old `python scripts/weights/plot.py --scale 7B --dir PATH` launcher still
+writes to `PATH/figures`; its default input root remains `results/weights`.
+Generating new comparison CSVs with `scripts/weights/compare.py` still requires
+downloaded checkpoints and its separate dependencies.
+
 ## Evaluation environments and study setup references
 
 `external-repositories.toml` records the exact local checkout revisions inspected
@@ -384,6 +441,7 @@ uv run --locked --group analysis es-capacity-ethics --help
 uv run --locked --group analysis es-capacity-models --help
 uv run --locked --group analysis es-capacity-mmlu --help
 uv run --locked --group analysis es-capacity-gpqa --help
+uv run --locked --group analysis es-capacity-weights --help
 uv run --locked --group analysis python scripts/passk/analyze.py --help
 uv run --locked --group analysis python scripts/mmlu/tables.py --help
 uv run --locked --group analysis python scripts/gpqa/analyze.py --help
@@ -460,8 +518,8 @@ changing them.
 ## Package builds
 
 `uv build` produces a wheel and a source distribution in `dist/`, using the pinned
-Hatchling build backend. The wheel contains the shared package, ETHICS command
-and dependency metadata;
+Hatchling build backend. The wheel contains the shared package, installed analysis
+and model-configuration commands, the synthetic pass@k example and dependency metadata;
 model weights, evaluation outputs and the write-up are excluded. The source
 distribution also includes the script entry points, tests and setup documentation.
 It can rebuild the wheel without a Git checkout.
