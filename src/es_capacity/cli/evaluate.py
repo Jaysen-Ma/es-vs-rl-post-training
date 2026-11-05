@@ -4,7 +4,8 @@ import argparse
 from pathlib import Path
 
 from es_capacity.cli.models import add_config_argument, validate_model_args
-from es_capacity.evaluation import ethics_commonsense, gpqa, mmlu
+from es_capacity.evaluation import ethics_commonsense, ethics_rest, gpqa, mmlu
+from es_capacity.config import ethics_data_dir
 from es_capacity.models import MODELS
 
 
@@ -48,13 +49,16 @@ def main(argv=None, *, default_mmlu_output=None, default_gpqa_output=None, defau
     command.add_argument("--enforce-eager", action="store_true", default=True,
                          help="retain the study's eager execution setting (enabled by default)")
     command = commands.add_parser(
-        "ethics", help="evaluate ETHICS commonsense morality",
-        description="Evaluate commonsense scenarios using local task data. "
+        "ethics", help="evaluate the ETHICS benchmark subsets",
+        description="Evaluate moral scenarios using local task data. "
         "Use es-capacity-ethics to analyse saved predictions.",
     )
     _add_model_arguments(command, default_ethics_output, gpu_memory=0.25, max_model_len=2048,
                          default_arms=ethics_commonsense.DEFAULT_ARMS)
-    command.add_argument("--subset", choices=("commonsense",), required=True)
+    command.set_defaults(arms=None)
+    command.add_argument("--subset", choices=("commonsense", "rest"), required=True)
+    command.add_argument("--data-dir", type=Path, default=None,
+                         help="unpacked deontology/justice/virtue/utilitarianism data (rest only)")
     command.add_argument("--csv", type=Path, default=None,
                          help="official cm_test.csv; otherwise reuse local data or download ethics.tar")
     command.add_argument("--num-fewshot", type=int, default=0)
@@ -65,16 +69,31 @@ def main(argv=None, *, default_mmlu_output=None, default_gpqa_output=None, defau
                          help="fraction or count of scenarios for a quick check")
     args = parser.parse_args(argv)
     command = commands.choices[args.command]
+    if args.command == "ethics" and args.arms is None:
+        args.arms = list(ethics_commonsense.DEFAULT_ARMS if args.subset == "commonsense"
+                         else ethics_rest.DEFAULT_ARMS)
     if args.command == "gpqa":
         if len(set(args.seeds)) != len(args.seeds) or any(seed < 0 for seed in args.seeds):
             command.error("--seeds must be distinct nonnegative integers")
     validate_model_args(command, args)
+    if args.command == "ethics" and args.subset == "rest":
+        if args.csv is not None or args.num_fewshot != 0:
+            command.error("--csv and nonzero --num-fewshot apply only to commonsense")
+        args.data_dir = (args.data_dir if args.data_dir is not None else ethics_data_dir()).expanduser().resolve()
+        if not args.data_dir.is_dir():
+            command.error(f"missing {args.data_dir}; set --data-dir or ETHICS_DATA_DIR to the unpacked ETHICS directory")
+    elif args.command == "ethics" and args.data_dir is not None:
+        command.error("--data-dir applies only to --subset rest; use --csv for commonsense")
     if args.command == "ethics" and args.csv is not None:
         args.csv = args.csv.expanduser().resolve()
         if not args.csv.is_file():
             command.error(f"CSV file does not exist: {args.csv}")
     try:
-        {"mmlu": mmlu.run, "gpqa": gpqa.run, "ethics": ethics_commonsense.run}[args.command](args)
+        if args.command == "ethics":
+            runner = ethics_rest if args.subset == "rest" else ethics_commonsense
+        else:
+            runner = {"mmlu": mmlu, "gpqa": gpqa}[args.command]
+        runner.run(args)
     except ModuleNotFoundError as exc:
         if args.command == "ethics" and exc.name == "scipy":
             command.error("SciPy is required for ETHICS statistical summaries; install "
@@ -89,6 +108,10 @@ def main(argv=None, *, default_mmlu_output=None, default_gpqa_output=None, defau
             "this package into that environment. See DEVELOPMENT.md. "
             "The analysis extra does not install the model runtime."
         )
+    except OSError as exc:
+        if args.command != "ethics":
+            raise
+        command.error(str(exc))
 
 
 if __name__ == "__main__":

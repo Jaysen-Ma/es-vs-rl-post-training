@@ -64,6 +64,7 @@ jobs:
           uv run --locked --group analysis python scripts/mmlu/run.py --help
           uv run --locked --group analysis python scripts/gpqa/run_sweep.py --help
           uv run --locked --group analysis python scripts/ethics/run.py --help
+          uv run --locked --group analysis python scripts/ethics/run_rest.py --help
           for script in scripts/passk/analyze.py scripts/mmlu/tables.py scripts/gpqa/analyze.py scripts/gpqa/tables.py scripts/weights/plot.py; do
             uv run --locked --group analysis python "$script" --help
           done

@@ -208,6 +208,7 @@ class RunnerConfigurationTests(unittest.TestCase):
 
     def test_ethics_data_directory_reaches_worker_command(self):
         runner = load_runner("scripts/ethics/run_rest.py")
+        implementation = sys.modules[runner.run_one_arm.__module__]
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             cli_data = root / "explicit data"
@@ -224,8 +225,8 @@ class RunnerConfigurationTests(unittest.TestCase):
                     with (
                         patch.dict(os.environ, {"ETHICS_DATA_DIR": str(env_data)}),
                         patch.object(sys, "argv", argv),
-                        patch.object(runner, "prepare", return_value=out) as prepare,
-                        patch.object(runner, "summarize"),
+                        patch.object(implementation, "prepare", return_value=out) as prepare,
+                        patch.object(implementation, "summarize"),
                         patch.object(
                             runner.subprocess, "run", return_value=SimpleNamespace(returncode=0)
                         ) as run,
@@ -311,6 +312,7 @@ class RunnerConfigurationTests(unittest.TestCase):
 
     def test_ethics_worker_uses_selected_directory(self):
         runner = load_runner("scripts/ethics/run_rest.py")
+        implementation = sys.modules[runner.run_one_arm.__module__]
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             out = root / "output"
@@ -320,8 +322,8 @@ class RunnerConfigurationTests(unittest.TestCase):
             ]
             with (
                 patch.object(sys, "argv", argv),
-                patch.object(runner, "prepare", return_value=out) as prepare,
-                patch.object(runner, "run_one_arm") as evaluate,
+                patch.object(implementation, "prepare", return_value=out) as prepare,
+                patch.object(implementation, "run_one_arm") as evaluate,
             ):
                 runner.main()
             prepare.assert_called_once_with(out, root)
@@ -333,11 +335,14 @@ class RunnerConfigurationTests(unittest.TestCase):
             missing = str(Path(tmp) / "missing")
             with (
                 patch.object(sys, "argv", ["run_rest.py", "--data-dir", missing]),
-                patch.object(runner, "prepare") as prepare,
+                patch.object(sys.modules[runner.run_one_arm.__module__], "prepare") as prepare,
                 patch.object(runner.subprocess, "run") as run,
+                contextlib.redirect_stderr(io.StringIO()) as error,
             ):
-                with self.assertRaisesRegex(SystemExit, "set --data-dir or ETHICS_DATA_DIR"):
+                with self.assertRaises(SystemExit) as raised:
                     runner.main()
+            self.assertEqual(raised.exception.code, 2)
+            self.assertIn("set --data-dir or ETHICS_DATA_DIR", error.getvalue())
             prepare.assert_not_called()
             run.assert_not_called()
 

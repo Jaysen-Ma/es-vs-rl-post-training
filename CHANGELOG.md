@@ -6,6 +6,9 @@ An entry here can describe a release still being prepared.
 
 ## Unreleased
 
+- Package the remaining four ETHICS subsets under `es-capacity-evaluate ethics
+  --subset rest`, preserving contrast-group scoring and the legacy launcher.
+  Required CSVs are checked before preparation; generated YAML quotes data paths.
 - Package ETHICS commonsense evaluation with
   `es-capacity-evaluate ethics --subset commonsense`, a bundled task template and
   installed worker dispatch. Retain the legacy launcher and scoring/summary

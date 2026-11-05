@@ -2,9 +2,8 @@
 
 The `es_capacity` package provides the shared model registry, filesystem
 configuration and saved-result analysis for pass@k, ETHICS, MMLU, GPQA and weight
-distributions. MMLU, GPQA and ETHICS commonsense model runners are under
-`evaluation/`; the other ETHICS subsets and checkpoint comparison remain in
-`scripts/`. Model execution requires
+distributions. MMLU, GPQA and all ETHICS model runners are under `evaluation/`;
+checkpoint comparison remains in `scripts/`. Model execution requires
 a separate GPU environment.
 
 ## Analysis environment
@@ -530,8 +529,28 @@ the checkout root. The installed command requires `--out` and `--subset`. Import
 the runner or showing help does not load the runtime or change environment
 variables. Core-package checks exercise task preparation from the installed wheel;
 worker tests simulate model scoring and pass the outputs through the analysis
-code. Actual GPU inference remains unvalidated. The other four subsets still use
-`scripts/ethics/run_rest.py` at this stage.
+code. Actual GPU inference remains unvalidated.
+
+## Other ETHICS subsets
+
+```bash
+es-capacity-evaluate ethics --subset rest --config /data/models.toml --arms 7B-base 7B-ES 7B-RL --data-dir /data/ethics --out /data/ethics-run
+```
+
+`rest` evaluates deontology, justice, virtue and utilitarianism together. The
+dataset root must contain `deontology/deontology_test.csv`,
+`justice/justice_test.csv`, `virtue/virtue_test.csv` and
+`utilitarianism/util_test.csv`. `--data-dir` overrides `ETHICS_DATA_DIR`, then the
+existing `/tmp/ethics/ethics` fallback. Missing inputs fail before writing output.
+The default model order remains the three 7B arms followed by the three 1.5B arms.
+
+Preparation writes `rest_data/` JSONLs and `rest_tasks/` YAMLs with quoted absolute
+data paths. Contrast groups, reply choices and the two orderings of each utility
+pair are preserved. Each worker writes `ARM/rest_samples.jsonl` and
+`ARM/rest_results.json`; `rest_summary.csv` is refreshed after successful workers.
+Commonsense files remain separate. The legacy `scripts/ethics/run_rest.py`
+launcher retains its flags and checkout-relative output default. Scoring is
+always zero-shot for these four subsets; `--csv` is for commonsense only.
 
 ## Model and data paths
 
