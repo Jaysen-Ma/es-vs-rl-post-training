@@ -101,6 +101,7 @@ assert importlib.util.find_spec('scipy') is None
         evaluate_cli = bin_dir / ("es-capacity-evaluate.exe" if sys.platform == "win32" else "es-capacity-evaluate")
         run(evaluate_cli, "--help", cwd=work)
         run(evaluate_cli, "mmlu", "--help", cwd=work)
+        run(evaluate_cli, "gpqa", "--help", cwd=work)
         checkpoint = work / "checkpoint"
         checkpoint.mkdir()
         (checkpoint / "config.json").write_text("{}")

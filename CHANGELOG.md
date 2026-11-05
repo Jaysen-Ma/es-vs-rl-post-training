@@ -6,6 +6,10 @@ An entry here can describe a release still being prepared.
 
 ## Unreleased
 
+- Package the GPQA seed-sweep runner with `es-capacity-evaluate gpqa`, installed
+  worker dispatch and a compatibility launcher for `scripts/gpqa/run_sweep.py`.
+  Model reuse, cache disabling, seed propagation, defaults and output formats
+  are preserved. Empty, duplicate and negative seed selections are rejected.
 - Package the MMLU model runner under `evaluation/`, with
   `es-capacity-evaluate mmlu` and a compatibility launcher for `scripts/mmlu/run.py`.
   Workers launch the installed module; runtime imports and vLLM settings are

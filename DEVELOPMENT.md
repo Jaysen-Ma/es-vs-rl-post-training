@@ -2,8 +2,8 @@
 
 The `es_capacity` package provides the shared model registry, filesystem
 configuration and saved-result analysis for pass@k, ETHICS, MMLU, GPQA and weight
-distributions. The MMLU model runner is under `evaluation/`; the other model
-runners and checkpoint comparison remain in `scripts/`. Model execution requires
+distributions. MMLU and GPQA model runners are under `evaluation/`; ETHICS runners
+and checkpoint comparison remain in `scripts/`. Model execution requires
 a separate GPU environment.
 
 ## Analysis environment
@@ -191,7 +191,7 @@ inputs are excluded from Git; CI exercises synthetic results and samples.
 
 ## GPQA analysis
 
-`es-capacity-gpqa` analyses the saved seed sweeps from `scripts/gpqa/run_sweep.py`.
+`es-capacity-gpqa` analyses the saved seed sweeps from `es-capacity-evaluate gpqa`.
 It uses deterministic likelihood scores already in those files; it does not run
 models or generate answers. The functions are in `src/es_capacity/analysis/gpqa.py`
 and the command is in `src/es_capacity/cli/gpqa.py`.
@@ -419,6 +419,68 @@ CI tests orchestration, simulated runtime calls, output formats and worker clean
 without loading model weights. Actual GPU inference and a fresh evaluation
 environment remain unvalidated in this packaging work.
 
+## GPQA model evaluation
+
+Use `es-capacity-evaluate gpqa` in the existing GPU evaluation environment, with
+downloaded checkpoints and the same model configuration as MMLU. This command
+runs models; `es-capacity-gpqa` analyses the saved outputs.
+
+```bash
+es-capacity-evaluate gpqa --config /data/models.toml --arms 7B-base 7B-ES 7B-RL --seeds 0 1 2 3 4 5 6 7 8 9 --out /data/gpqa-sweep
+es-capacity-gpqa check --results-dir /data/gpqa-sweep
+es-capacity-gpqa summarize --results-dir /data/gpqa-sweep --out /data/gpqa-summary --pair 7B-ES:7B-base --pair 7B-RL:7B-base
+```
+
+Without `--arms` or `--seeds`, the runner selects all six registered arms and
+seeds 0 through 9. Seed lists must be nonempty, distinct and nonnegative; negative
+seed-directory names would not match the saved-output analyzer's layout. The
+installed command requires `--out`. It checks every selected checkpoint before
+creating that directory or starting workers, and forwards the resolved absolute
+configuration path to each worker.
+
+GPQA-diamond scoring still ranks the four choices by likelihood rather than
+sampling answers. Seeds vary the answer-option ordering, not a sampling budget.
+Each model runs in its own process and is loaded once, then reused for every
+selected seed. All four harness seed arguments are set to the same value per
+evaluation. `datasets.disable_caching()` runs before task setup to prevent reuse
+of a cached answer permutation, and per-question sample logging remains enabled.
+Run `check` afterwards to verify that arms saw matching questions and that the
+saved hash vectors actually changed between seeds; distinct seed values alone
+do not establish distinct permutations or statistical independence.
+
+The study defaults remain:
+
+| Setting | Default |
+|---|---|
+| Task | `gpqa_diamond_zeroshot` |
+| Seeds | `0` through `9` |
+| Dtype | `bfloat16` |
+| Batch size | `auto` |
+| Maximum model length | `4096` |
+| GPU memory utilization | `0.5` |
+| Eager execution | Enabled |
+
+The legacy `--enforce-eager` flag remains accepted; eager execution is already
+enabled by default. Runtime imports and the `VLLM_USE_FLASHINFER_SAMPLER=0` fallback
+occur only in workers, retaining a user-supplied value. Importing the runner or
+showing help leaves the parent environment unchanged.
+
+Each seed/arm writes `OUTPUT/seedN/ARM/results_TIMESTAMP.json` and its matching
+`samples_gpqa_diamond_zeroshot_TIMESTAMP.jsonl`. Results retain the harness metrics
+and counts, checkpoint/dtype metadata, arm and seed. Sample records retain their
+question IDs, hashes and choice likelihoods for paired analysis. Reruns can add
+timestamped files; the analyzer's existing lexical selection rule is unchanged.
+The parent continues after a failed arm and returns status 1 if any worker fails.
+
+Orchestration and model execution live in `src/es_capacity/evaluation/gpqa.py`,
+with shared command handling in `src/es_capacity/cli/evaluate.py`. Workers launch
+the installed module using the current interpreter, without a checkout path.
+`python scripts/gpqa/run_sweep.py` remains a compatibility launcher, preserving
+the flags and `results/gpqa_results` output default. The core package can show
+help and check checkpoint paths, while actual evaluation needs the separate
+model runtime. Tests simulate that runtime and check output compatibility with
+the analyzer; actual GPU inference and a fresh GPU environment remain unvalidated.
+
 ## Model and data paths
 
 The registry in `src/es_capacity/models.py` defines the same six model arms used
@@ -515,6 +577,7 @@ uv run --locked --group analysis es-capacity-mmlu --help
 uv run --locked --group analysis es-capacity-gpqa --help
 uv run --locked --group analysis es-capacity-weights --help
 uv run --locked --group analysis es-capacity-evaluate mmlu --help
+uv run --locked --group analysis es-capacity-evaluate gpqa --help
 uv run --locked --group analysis python scripts/passk/analyze.py --help
 uv run --locked --group analysis python scripts/mmlu/tables.py --help
 uv run --locked --group analysis python scripts/gpqa/analyze.py --help
