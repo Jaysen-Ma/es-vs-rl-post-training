@@ -250,4 +250,3 @@ def fig_delta_by_depth(S: dict, scale: str, out: Path) -> None:
     fig.tight_layout()
     fig.savefig(out, dpi=150)
     plt.close(fig)
-

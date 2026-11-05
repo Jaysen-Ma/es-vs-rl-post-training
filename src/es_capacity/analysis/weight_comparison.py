@@ -390,4 +390,3 @@ def write_per_tensor(path: Path, per_tensor: dict) -> None:
             w.writerow([name, module_of(name), depth_of(name), v["n"],
                         f"{v['rel_l2']:.8e}", f"{v['delta_std']:.8e}",
                         f"{v['delta_max_abs']:.8e}", f"{v['zero_frac']:.6f}"])
-

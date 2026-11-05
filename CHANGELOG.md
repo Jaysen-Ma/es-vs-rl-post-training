@@ -6,6 +6,9 @@ An entry here can describe a release still being prepared.
 
 ## Unreleased
 
+- Split reproduction, model evaluation and contributor documentation into focused
+  guides. Shorten README setup and retain the existing DEVELOPMENT.md anchors.
+  Include the three guides in source archives; other local docs remain ignored.
 - Package CPU checkpoint comparison with `es-capacity-compare-weights`, explicit
   output paths and deferred PyTorch/SafeTensors imports. Keep the existing script
   launcher, numerical method and three CSV formats.

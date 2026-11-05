@@ -64,152 +64,42 @@ These results show that maths-only evolutionary post-training can improve mathem
 
 ## Evaluation
 
-Versioned package downloads are distributed through
-[GitHub Releases](https://github.com/Jaysen-Ma/es-vs-rl-post-training/releases)
-once published. See the [release notes](CHANGELOG.md) and
-[wheel installation instructions](RELEASING.md#install-a-release).
-
-For analysis of saved outputs, install [uv](https://docs.astral.sh/uv/getting-started/installation/) and use the locked Python environment:
+To try saved-result analysis without models or benchmark downloads, install
+[uv](https://docs.astral.sh/uv/getting-started/installation/) and run from a clone:
 
 ```bash
 uv sync --locked --group analysis
-uv run --locked --group analysis python scripts/plot_hero.py
-```
-
-This installs the shared package and regenerates the pass@k figure from committed summaries. Model evaluation requires a separate GPU environment; install the shared package into an existing environment with `python -m pip install -e .`. See [Development and reproduction](DEVELOPMENT.md) for input requirements, environment boundaries and the recorded external repository revisions.
-
-To try pass@k analysis without downloading models or evaluation data:
-
-```bash
 uv run --locked --group analysis es-capacity-passk --example --out /tmp/passk-example --plot
 ```
 
-This uses four synthetic questions with four correctness scores each, writing
-`synthetic_summary.json` and `synthetic_passk.png`. The example is bundled in the
-installed package; its numbers are illustrative, not study results.
-
-To analyse your own saved maths outputs from the external evaluation harness:
-
-```bash
-uv run --locked --group analysis es-capacity-passk --results-dir /path/to/run --out /path/to/summaries --label base --label trained --label rl --baseline base --plot
-```
-
-Inputs follow `RUN/LABEL/BENCHMARK/*.jsonl`. The command runs from any directory
-once installed; pass explicit paths to its inputs and outputs. Its pass@k
-estimator and JSON format are unchanged, and generation and grading continue to
-use the existing limit-of-RLVR fork. Existing `scripts/passk/analyze.py --run-tag`
-commands remain available. See [input and output details](DEVELOPMENT.md#passk-analysis).
-
-To regenerate ETHICS summaries from saved predictions, without running models:
-
-```bash
-uv run --locked --group analysis es-capacity-ethics --results-dir results/ethics_results --subset commonsense
-uv run --locked --group analysis es-capacity-ethics --results-dir results/ethics_results --subset rest
-```
-
-These commands require the raw per-arm sample files, which are excluded from Git,
-and replace the corresponding CSV summary in the supplied results directory.
-
-For MMLU tables from saved evaluator outputs:
-
-```bash
-uv run --locked --group analysis es-capacity-mmlu --results-dir /path/to/mmlu-run --out /path/to/mmlu-summary
-```
-
-This writes `scores.csv` in the output directory and prints a Markdown table.
-See [MMLU input requirements](DEVELOPMENT.md#mmlu-analysis).
-
-For GPQA seed-sweep summaries and Markdown tables:
-
-```bash
-uv run --locked --group analysis es-capacity-gpqa summarize --results-dir /path/to/gpqa-sweep --out /path/to/gpqa-summary --pair 7B-ES:7B-base
-uv run --locked --group analysis es-capacity-gpqa tables --results-dir /path/to/gpqa-summary
-```
-
-Use `es-capacity-gpqa check --results-dir PATH` to validate a sweep without writing
-outputs. See [GPQA input and output details](DEVELOPMENT.md#gpqa-analysis).
-
-To plot saved weight-comparison CSVs without loading checkpoints:
-
-```bash
-uv run --locked --group analysis es-capacity-weights --scale 7B --results-dir /path/to/weight-comparisons --out /path/to/weight-figures
-```
-
-This writes the five weight-distribution figures. See
-[required CSVs and output filenames](DEVELOPMENT.md#weight-distribution-figures).
+This writes a summary and plot from bundled synthetic scores. See the
+[reproduction guide](docs/reproduction.md) for real input formats, available
+commands and which study results can be regenerated from included files.
 
 ### Evaluate downloaded models
 
-You do not need to train models to use this repository. If you already have the
-checkpoints, configure their local paths. Otherwise, download the checkpoints you
-want to evaluate from these model repositories first:
+[Download links for all six checkpoints](docs/model_evaluation.md#download-checkpoints)
+and [model configuration instructions](docs/model_evaluation.md#model-and-data-paths)
+are in the evaluation guide. You download the models yourself and provide their
+independent local paths in `config.toml`; the runners do not fall back to Hub
+model downloads. No training is required.
 
-| Model arm | Download |
-|---|---|
-| `1.5B-base` | [Qwen2.5-1.5B](https://huggingface.co/Qwen/Qwen2.5-1.5B) |
-| `1.5B-ES` | [Qwen2.5-1.5B-ES-math](https://huggingface.co/zocrate/Qwen2.5-1.5B-ES-math) |
-| `1.5B-RL` | [Qwen-2.5-1.5B-SimpleRL-Zoo](https://huggingface.co/hkust-nlp/Qwen-2.5-1.5B-SimpleRL-Zoo) |
-| `7B-base` | [Qwen2.5-7B](https://huggingface.co/Qwen/Qwen2.5-7B) |
-| `7B-ES` | [Qwen2.5-7B-ES-math](https://huggingface.co/zocrate/Qwen2.5-7B-ES-math) |
-| `7B-RL` | [Qwen-2.5-7B-SimpleRL-Zoo](https://huggingface.co/hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo) |
-
-`RL` denotes the GRPO checkpoints and retains the labels used in the saved results.
-Download each full Hugging Face checkpoint directory, including weights, model
-configuration and tokenizer files. Our runners use local checkpoints and do not
-fall back to downloading a model when a path is missing.
+In an existing GPU evaluation environment with this package installed:
 
 ```bash
-cp config.example.toml config.toml
-# Edit config.toml to point each selected arm to its downloaded checkpoint.
 es-capacity-models check --config config.toml --arms 7B-base 7B-ES 7B-RL
-```
-
-Directories may have any names and need not share a parent. Relative paths are
-resolved from the configuration file's directory. You can keep just the model
-entries you use and select those arms with `--arms`. The checker validates that
-paths contain `config.json`; the evaluation runtime checks the remaining files.
-The checker works with the core package, without GPU dependencies.
-
-Pass the same configuration to every workflow, using the appropriate evaluation
-or checkpoint-analysis environment described in [Development and reproduction](DEVELOPMENT.md):
-
-```bash
 es-capacity-evaluate mmlu --config config.toml --arms 7B-base 7B-ES 7B-RL --out /path/to/mmlu-run
-es-capacity-evaluate ethics --subset commonsense --config config.toml --arms 7B-base 7B-ES 7B-RL --out /path/to/ethics-run
-es-capacity-evaluate ethics --subset rest --config config.toml --arms 7B-base 7B-ES 7B-RL --data-dir /path/to/ethics/ethics --out /path/to/ethics-run
-es-capacity-evaluate gpqa --config config.toml --arms 7B-base 7B-ES 7B-RL --out /path/to/gpqa-sweep
-es-capacity-compare-weights --config config.toml --scale 7B --out /path/to/weight-comparisons
 ```
 
-MMLU evaluation runs one model per worker process; use `es-capacity-mmlu` to
-analyse the saved outputs. See [MMLU evaluation settings and environment
-requirements](DEVELOPMENT.md#mmlu-model-evaluation). The legacy
-`python scripts/mmlu/run.py` command remains available.
+The [model-evaluation guide](docs/model_evaluation.md) covers MMLU, GPQA, all five
+ETHICS subsets, the external maths harness and CPU checkpoint comparison. It
+states the runtime requirements and validation limits. The old script commands
+remain available as compatibility launchers.
 
-GPQA evaluation reuses each loaded model across answer-order seeds 0–9 by default.
-See [GPQA evaluation settings](DEVELOPMENT.md#gpqa-model-evaluation); the legacy
-`python scripts/gpqa/run_sweep.py` command remains available.
-
-For ETHICS commonsense, supply `--csv /path/to/cm_test.csv` to use an existing
-dataset, or let the runner prepare the official test data under `--out`. See
-[commonsense evaluation details](DEVELOPMENT.md#ethics-commonsense-evaluation).
-The old ETHICS scripts remain available. See [the other four subsets](DEVELOPMENT.md#other-ethics-subsets)
-for the unpacked data layout and paired scoring.
-
-Maths evaluation uses the external [limit-of-RLVR](https://github.com/Jaysen-Ma/limit-of-RLVR)
-harness. Install this package in that environment too, then set the harness path:
-
-```bash
-export MATH_EVAL_DIR=/path/to/limit-of-RLVR/math/examples/math_eval
-bash scripts/passk/run_eval.sh --config config.toml 7B-base base my-run
-```
-
-To use a configuration from any working directory, set
-`ES_CAPACITY_CONFIG=/absolute/path/to/config.toml` instead of passing `--config`.
-Explicit `--config` takes precedence. Configuration is unnecessary when analysing
-saved predictions or regenerating figures. Training-repository revisions are
-recorded separately in [external-repositories.toml](external-repositories.toml)
-as study setup references.
+For the source layout, tests and CI, see the [contributor guide](docs/development.md).
+Versioned downloads, when published, are on
+[GitHub Releases](https://github.com/Jaysen-Ma/es-vs-rl-post-training/releases);
+see the [release notes](CHANGELOG.md) and [installation instructions](RELEASING.md#install-a-release).
 
 ## Acknowledgements
 
