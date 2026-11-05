@@ -259,7 +259,7 @@ name = "es-capacity"
 version = "0.1.0"
 source = { editable = "." }
 
-[package.dev-dependencies]
+[package.optional-dependencies]
 analysis = [
     { name = "matplotlib", version = "3.10.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "matplotlib", version = "3.11.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
@@ -271,14 +271,21 @@ analysis = [
     { name = "scipy", version = "1.18.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
 
+[package.dev-dependencies]
+analysis = [
+    { name = "es-capacity", extra = ["analysis"] },
+]
+
 [package.metadata]
+requires-dist = [
+    { name = "matplotlib", marker = "extra == 'analysis'", specifier = ">=3.8,<4" },
+    { name = "numpy", marker = "extra == 'analysis'", specifier = ">=1.26,<3" },
+    { name = "scipy", marker = "extra == 'analysis'", specifier = ">=1.11,<2" },
+]
+provides-extras = ["analysis"]
 
 [package.metadata.requires-dev]
-analysis = [
-    { name = "matplotlib", specifier = ">=3.8,<4" },
-    { name = "numpy", specifier = ">=1.26,<3" },
-    { name = "scipy", specifier = ">=1.11,<2" },
-]
+analysis = [{ name = "es-capacity", extras = ["analysis"] }]
 
 [[package]]
 name = "fonttools"

@@ -15,13 +15,20 @@ dependencies = []
 [project.urls]
 Repository = "https://github.com/Jaysen-Ma/es-vs-rl-post-training"
 
-[dependency-groups]
+[project.scripts]
+es-capacity-ethics = "es_capacity.analysis.ethics_cli:main"
+
+[project.optional-dependencies]
 # Summaries, statistical comparisons and figures from saved evaluation outputs.
 analysis = [
     "matplotlib>=3.8,<4",
     "numpy>=1.26,<3",
     "scipy>=1.11,<2",
 ]
+
+[dependency-groups]
+# Keep the existing locked setup command, using the same dependencies as the wheel.
+analysis = ["es-capacity[analysis]"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/es_capacity"]
