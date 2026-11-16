@@ -1,27 +1,43 @@
-# GitHub releases
+# Making a GitHub release
 
-Choose a new version matching `project.version` in `pyproject.toml`.
-The examples below use `0.2.0`; substitute the version you are preparing.
-Releases provide a wheel, source archive and `SHA256SUMS` on GitHub.
-There is no PyPI publication step.
+This is a checklist for the repository maintainer. A release gives users a named,
+tested version to download and install. You do not need to make a release after
+every commit, and users can run the project from a clone without one.
 
-## Prepare the release in a pull request
+The release process publishes downloads on GitHub, with no PyPI publication.
 
-Update the version in `pyproject.toml`, refresh `uv.lock`, and update installation
-examples containing the version. Write release notes in the GitHub draft release
-description, summarising changes, compatibility and validation limits.
-Bug fixes increment the patch version; new functionality increments the minor
-version. Before 1.0, document any breaking
-changes explicitly and increment the minor version for them.
+## What the terms mean
 
-Review the release notes, package contents and supported environments. Require
-the PR's `CI` check to pass. The repository owner merges the PR into `main`.
-Release preparation on a branch does not create a release or tag.
+| Term | Meaning here |
+|---|---|
+| Version | A label such as `0.2.0`, recorded in `pyproject.toml` |
+| Tag | A Git name such as `v0.2.0` pointing to the exact released commit |
+| GitHub release | A page attached to that tag, with notes and downloadable files |
+| Wheel (`.whl`) | The installable Python package and commands |
+| Source archive (`.tar.gz`) | Package source, tests, configuration example and guides |
+| `SHA256SUMS` | File fingerprints used to check that downloaded files are unchanged |
 
-## Build from the merged commit
+Checkpoints, benchmark data, saved model answers, the paper and study results
+are outside these package downloads. A clone includes the paper and committed
+evaluation summaries. Model execution also needs its separate runtime environment.
 
-Use a clean checkout of `main`. Confirm that the `CI` run for that exact commit
-has passed on GitHub; a passing PR run alone is not the release check.
+## 1. Prepare a version
+
+Choose a version/tag that has not been used. The commands below use `0.2.0` as an
+example; replace it with the version you are preparing.
+
+In a pull request, update `project.version` in `pyproject.toml`, run `uv lock`,
+and update version numbers in installation examples. Describe the changes and
+validation limits in the PR. A small bug fix usually increments the last number;
+new functionality increments the middle number. Document any breaking changes.
+
+Merge the reviewed PR into `main`, then wait for GitHub's automated `CI` check on
+that merged commit to pass.
+
+## 2. Build and check the downloads
+
+Use a new checkout so the release comes from committed code. Use Python 3.12 and
+uv 0.10.3, matching CI:
 
 ```bash
 git clone --branch main https://github.com/Jaysen-Ma/es-vs-rl-post-training.git es-capacity-release
@@ -29,18 +45,16 @@ cd es-capacity-release
 git status --short
 git rev-parse HEAD
 uv sync --locked --group analysis
-uv run --locked --group analysis python -m unittest discover -s tests -v
 uv run --locked --group analysis python scripts/check_package.py --out-dir dist
 ```
 
-Use uv 0.10.3 and Python 3.12, as in CI. The package check builds the wheel from
-the source archive, installs the wheel into a separate environment, runs the
-shipped tests against it, and exercises the installed commands. Only after all
-checks pass does it copy those exact artifacts into `dist/` and write SHA-256
-checksums. An existing output directory is rejected to avoid mixing candidates.
-Do not run another build between validation and upload.
+Before building, `git status --short` should be empty and `HEAD` should be the
+merged commit whose CI passed. The package checker builds the downloads, installs
+the wheel in a clean environment, runs tests and exercises installed commands.
+It saves files in `dist/` only after those checks pass. `dist/` must not already
+exist; use a fresh checkout rather than mixing files from different builds.
 
-For `0.2.0`, the directory must contain exactly:
+For version `0.2.0`, the three files are:
 
 ```text
 es_capacity-0.2.0-py3-none-any.whl
@@ -48,36 +62,27 @@ es_capacity-0.2.0.tar.gz
 SHA256SUMS
 ```
 
-Verify the checksums from that directory with `sha256sum --check SHA256SUMS`.
-The CI package checks exercise the same export and checksum verification on both
-supported Python versions. Dependency versions are constrained to `uv.lock`
-during validation; ordinary wheel installations use the declared dependency
-bounds unless the user also supplies constraints.
+Upload these exact checked files. Do not rebuild between checking and uploading.
 
-## Tag and review a draft
+## 3. Name the commit and publish
 
-After confirming the merged commit and successful checks, create an annotated
-tag at the checked-out commit and push only that tag:
+From that same checkout, create and push the tag:
 
 ```bash
 git tag -a v0.2.0 -m "Release v0.2.0"
 git push origin refs/tags/v0.2.0
-gh release create v0.2.0 --verify-tag --draft --title "v0.2.0" --notes "Describe this version's changes and validation limits." dist/es_capacity-0.2.0-py3-none-any.whl dist/es_capacity-0.2.0.tar.gz dist/SHA256SUMS
 ```
 
-The [GitHub CLI release command](https://cli.github.com/manual/gh_release_create)
-supports draft creation and requires the existing tag with `--verify-tag`.
+Create a draft release on GitHub using that tag. Write short notes explaining
+what changed and what has been validated, then attach the three files from
+`dist/`. Review the tag, notes and attachments before publishing the draft.
 
-Review the draft's tag, notes and three assets on GitHub. Download the assets
-into an empty directory and verify `SHA256SUMS` there. Confirm that the tag's
-commit matches the validated checkout. Publish the reviewed draft on GitHub.
-Never move a published tag or replace its assets; correct problems in a new
-version.
+Keep released tags and files unchanged. Corrections get a new version.
 
 ## Install a release
 
-Download all three assets from the chosen GitHub release into one directory and
-verify them before installing the wheel into a separate virtual environment:
+Download the three files from the chosen GitHub release into one directory.
+Check the files and install the wheel in a separate environment:
 
 ```bash
 sha256sum --check SHA256SUMS
@@ -86,7 +91,7 @@ python3 -m venv .venv
 .venv/bin/es-capacity-passk --example --out example-output --plot
 ```
 
-These commands target Linux, the validated platform. Users who need the locked
-environment or checkout-specific scripts can extract the source archive and
-follow `docs/reproduction.md`. Model execution still requires a separate GPU
-environment, which has not been validated for this release.
+The `[analysis]` extra installs the plotting and statistics dependencies. The
+example needs no models. These commands target Linux; GPU runtime validation
+remains deferred. For a locked checkout environment, follow
+[the reproduction guide](docs/reproduction.md).
