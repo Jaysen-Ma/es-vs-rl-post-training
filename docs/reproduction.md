@@ -93,6 +93,11 @@ not checkpoints, the original dataset archive, or a GPU. A fresh clone does not
 contain these sample files. The existing ETHICS runners call the same packaged
 summary functions after evaluation; the scoring and CSV formats are unchanged.
 
+Commonsense inputs must have unique question IDs, binary labels and two choice
+scores per question. A trained/base comparison requires the same IDs and labels.
+Invalid or empty inputs fail before replacing the previous summary. For small
+runs containing only one label, accuracy for the absent label is left blank.
+
 Checkpoint comparison (`es-capacity-compare-weights`) requires PyTorch and
 SafeTensors and is outside this analysis environment. See the
 [checkpoint comparison setup](model_evaluation.md#checkpoint-comparison).
@@ -134,7 +139,8 @@ correctness indicators, for example:
 {"idx": 0, "score": [true, false, false, true]}
 ```
 
-Shard files should cover disjoint question IDs. All compared labels must cover
+Shard files must cover disjoint question IDs; duplicates within or across files
+are rejected. All compared labels must cover
 the same IDs. Each label must have a positive, uniform sample count across its
 questions. The four-way breakdown additionally requires equal counts between
 each compared pair; unequal-budget pairs retain their curves and omit that
@@ -191,6 +197,8 @@ configuration metadata. Each sample line supplies `subtask`, `doc_id` and `acc`.
 All directories with `results.json` are included and must have `samples.jsonl`.
 Question keys are `(subtask, doc_id)`; record order can differ between arms.
 Duplicate keys and mismatched question sets in a trained/base pair are errors.
+The number of sample records must also match the count reported in `results.json`,
+so equally truncated model outputs cannot pass just by having matching IDs.
 
 The command creates `--out` if needed and replaces only its `scores.csv`, leaving
 the input files untouched when output is separate. It prints the study's existing

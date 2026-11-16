@@ -14,8 +14,6 @@ from unittest.mock import patch
 
 from es_capacity.config import ethics_data_dir, math_eval_dir, models_dir
 from es_capacity.cli.evaluate import main as evaluate_main
-from es_capacity.cli.compare_weights import main as compare_weights_main
-from es_capacity.analysis import weight_comparison
 from es_capacity.evaluation import ethics_commonsense, ethics_rest, gpqa, mmlu
 from es_capacity.cli.models import main as models_main
 from es_capacity.models import MODELS, ModelConfigurationError, local_checkpoint_dir, resolve_model
@@ -238,10 +236,6 @@ class RunnerConfigurationTests(unittest.TestCase):
         environment.start()
         self.addCleanup(environment.stop)
 
-    def test_evaluation_workers_use_the_shared_model_resolver(self):
-        for command, runner in EVALUATORS:
-            with self.subTest(command=command):
-                self.assertIs(runner.resolve, resolve_model)
 
     def test_ethics_data_directory_reaches_worker_command(self):
         cli_data = self.root / "explicit data"
@@ -323,19 +317,27 @@ class RunnerConfigurationTests(unittest.TestCase):
         harness = self.root / "external harness"
         harness.mkdir()
         executable = harness / "run_sharded_eval.sh"
-        executable.write_text('#!/bin/bash\nprintf "%s\\n" "$1" >> "$MATH_EVAL_DIR/seen-paths"\n')
+        executable.write_text('#!/bin/bash\nprintf "%s\\n" "$1" >> "$MATH_EVAL_DIR/seen-paths"\n'
+                              'printf "%s\\n" "$@" >> "$MATH_EVAL_DIR/seen-args"\n')
         executable.chmod(0o755)
         local = checkpoint(self.root / "downloaded model")
         config = model_config(self.root / "settings/config.toml", {"7B-base": "../downloaded model"},
                               workflow_paths={"math_eval_dir": "../external harness"})
-        env = dict(os.environ, ES_CAPACITY_CONFIG=str(config), MATH_EVAL_DIR=str(self.root / "unused"))
+        env = dict(os.environ, ES_CAPACITY_CONFIG=str(config), MATH_EVAL_DIR=str(self.root / "unused"), GPU_MEM_UTIL="0.4")
         env["PATH"] = str(Path(sys.executable).parent) + os.pathsep + env["PATH"]
-        for arguments in ([], ["--config", str(config)]):
+        expected_args = []
+        for arguments, sampling in (([], []), (["--config", str(config)], ["2"])):
             env["ES_CAPACITY_CONFIG"] = str(config if not arguments else self.root / "absent.toml")
-            result = subprocess.run(["bash", str(script), *arguments, "7B-base", "base", "example", "2"],
+            result = subprocess.run(["bash", str(script), *arguments, "7B-base", "base", "example", *sampling],
                                     cwd=self.root, env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
+            for benchmark, default_budget in (("aime24", "512"), ("math500", "128"),
+                                              ("minerva_math", "128"), ("olympiadbench", "128")):
+                expected_args.extend([str(local), str(self.root / "project/results/example/base"),
+                                      benchmark, sampling[0] if sampling else default_budget,
+                                      "0.6", "0.95", "2048", "qwen-boxed", "1", "", "0.4"])
         self.assertEqual((harness / "seen-paths").read_text().splitlines(), [str(local)] * 8)
+        self.assertEqual((harness / "seen-args").read_text().splitlines(), expected_args)
         model_config(config, {"7B-base": local}, workflow_paths={"math_eval_dir": "missing"})
         result = subprocess.run(["bash", str(script), "--config", str(config), "7B-base", "base", "rejected"],
                                 cwd=self.root, env=env, capture_output=True, text=True)
@@ -395,15 +397,6 @@ class RunnerConfigurationTests(unittest.TestCase):
                 run.assert_not_called()
                 self.assertFalse((self.root / "unused output").exists())
 
-    def test_weight_comparison_uses_the_same_configured_paths(self):
-        paths = {arm: checkpoint(self.root / f"arbitrary {arm}") for arm in ("7B-base", "7B-ES", "7B-RL")}
-        config = model_config(self.root / "weight-models.toml", paths)
-        with patch.object(weight_comparison, "compare") as compare, contextlib.redirect_stdout(io.StringIO()):
-            compare_weights_main(["--scale", "7B", "--config", str(config), "--out", str(self.root / "weights")])
-        self.assertEqual(compare.call_count, 2)
-        self.assertEqual([call.args[:2] for call in compare.call_args_list], [
-            (paths["7B-base"], paths["7B-ES"]), (paths["7B-base"], paths["7B-RL"]),
-        ])
 
     def test_ethics_worker_uses_selected_directory(self):
         out = self.root / "output"

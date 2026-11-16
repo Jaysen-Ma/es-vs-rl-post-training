@@ -116,7 +116,7 @@ def main(argv=None):
             "this package into that environment. See docs/model_evaluation.md. "
             "The analysis extra does not install the model runtime."
         )
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         if args.command != "ethics":
             raise
         command.error(str(exc))

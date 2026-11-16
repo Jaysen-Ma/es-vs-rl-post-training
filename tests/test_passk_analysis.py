@@ -77,6 +77,27 @@ class PassAtKCliTests(unittest.TestCase):
         self.assertEqual(result["pass_at_k"], {"base": [0.25, 0.5], "trained": [0.5, 0.5]})
         self.assertEqual(list(self.inputs.rglob("*_summary.json")), [])
 
+    def test_duplicate_question_ids_within_or_across_shards_fail_before_output(self):
+        self.write_inputs()
+        directory = self.inputs / "base/math500"
+        shard = directory / "shard.jsonl"
+        original = shard.read_text()
+        duplicate = json.dumps({"idx": 0, "score": [False, False]}) + "\n"
+        for across_shards in (False, True):
+            with self.subTest(across_shards=across_shards):
+                shard.write_text(original)
+                extra = directory / "duplicate.jsonl"
+                target = extra if across_shards else shard
+                with target.open("a") as fh:
+                    fh.write(duplicate)
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as error:
+                    with self.assertRaises(SystemExit) as raised:
+                        main(self.arguments("--benchmark", "math500"))
+                self.assertEqual(raised.exception.code, 2)
+                self.assertIn("duplicate question ID", error.getvalue())
+                self.assertFalse(self.out.exists())
+                extra.unlink(missing_ok=True)
+
     def test_default_benchmarks_skip_missing_directories_and_process_available_data(self):
         self.write_inputs()
         with contextlib.redirect_stdout(io.StringIO()) as output:

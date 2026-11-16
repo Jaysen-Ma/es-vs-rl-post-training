@@ -38,6 +38,8 @@ def load_scores(result_dir: str) -> dict:
                 if not line:
                     continue
                 sample = json.loads(line)
+                if sample["idx"] in by_idx:
+                    raise ValueError(f"{f}: duplicate question ID {sample['idx']!r}; shards must contain disjoint questions")
                 by_idx[sample["idx"]] = sample["score"]
     return by_idx
 

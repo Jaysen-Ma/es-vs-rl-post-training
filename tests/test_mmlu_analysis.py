@@ -47,6 +47,17 @@ def fixture(root):
 
 
 class MmluAnalysisTests(unittest.TestCase):
+    def test_equally_truncated_samples_are_rejected_before_writing(self):
+        fixture(self.inputs)
+        for samples in self.inputs.glob("*/samples.jsonl"):
+            samples.write_text("".join(samples.read_text().splitlines(keepends=True)[:4]))
+        with contextlib.redirect_stderr(io.StringIO()) as error:
+            with self.assertRaises(SystemExit) as raised:
+                self.call_cli()
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("reports 8", error.getvalue())
+        self.assertFalse(self.out.exists())
+
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)

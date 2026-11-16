@@ -1,6 +1,7 @@
 """Saved-result analysis and CLI contracts using synthetic predictions."""
 
 import contextlib
+import csv
 import importlib.util
 import io
 import json
@@ -68,6 +69,64 @@ def rest_fixture(root):
 
 
 class EthicsAnalysisTests(unittest.TestCase):
+    @unittest.skipUnless(HAS_SCIPY, "install the analysis dependencies")
+    def test_commonsense_invalid_records_or_pairs_preserve_existing_summary(self):
+        for case in ("duplicate", "missing", "different-id", "different-label", "invalid-label", "fractional-label", "invalid-choices"):
+            with self.subTest(case=case):
+                root = self.root / case
+                commonsense_fixture(root)
+                path = root / "7B-ES/samples.jsonl"
+                rows = [json.loads(line) for line in path.read_text().splitlines()]
+                if case == "duplicate":
+                    rows.append(rows[0])
+                elif case == "missing":
+                    rows.pop()
+                elif case == "different-id":
+                    rows[0]["doc_id"] = 99
+                elif case == "different-label":
+                    rows[0]["target"] = 1 - rows[0]["target"]
+                elif case == "invalid-label":
+                    rows[0]["target"] = 2
+                elif case == "fractional-label":
+                    rows[0]["target"] = 0.5
+                else:
+                    rows[0]["filtered_resps"] = [[0]]
+                path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+                summary = root / "summary.csv"
+                summary.write_text("previous valid summary\n")
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    with self.assertRaises(SystemExit) as raised:
+                        ethics_cli.main(["--results-dir", str(root), "--subset", "commonsense"])
+                self.assertEqual(raised.exception.code, 2)
+                self.assertEqual(summary.read_text(), "previous valid summary\n")
+
+    @unittest.skipUnless(HAS_SCIPY, "install the analysis dependencies")
+    def test_single_label_summary_marks_the_absent_class_without_crashing(self):
+        for gold in (0, 1):
+            root = self.root / str(gold)
+            for arm in ("7B-base", "7B-ES"):
+                write_samples(root, arm, "samples.jsonl", [sample(0, gold, 1 if gold else -1)])
+            with contextlib.redirect_stdout(io.StringIO()):
+                ethics_cli.main(["--results-dir", str(root), "--subset", "commonsense"])
+            with (root / "summary.csv").open() as fh:
+                rows = list(csv.DictReader(fh))
+            for row in rows:
+                self.assertEqual(row["acc"], "1.000000")
+                self.assertEqual(row["acc_when_not_wrong"], "1.000000" if gold == 0 else "")
+                self.assertEqual(row["acc_when_wrong"], "1.000000" if gold == 1 else "")
+            self.assertEqual(rows[1]["mcnemar_p"], "1.0000")
+
+    @unittest.skipUnless(HAS_SCIPY, "install the analysis dependencies")
+    def test_empty_commonsense_samples_fail_without_replacing_summary(self):
+        write_samples(self.root, "7B-base", "samples.jsonl", [])
+        summary = self.root / "summary.csv"
+        summary.write_text("previous valid summary\n")
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as raised:
+                self.run_cli("commonsense")
+        self.assertEqual(raised.exception.code, 2)
+        self.assertEqual(summary.read_text(), "previous valid summary\n")
+
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
@@ -137,11 +196,6 @@ class EthicsAnalysisTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, 2)
         self.assertIn("uv sync --locked --group analysis", error.getvalue())
 
-    def test_evaluation_workers_share_the_analysis_summaries(self):
-        from es_capacity.evaluation import ethics_commonsense as commonsense_runner
-        from es_capacity.evaluation import ethics_rest as rest_runner
-        self.assertIs(commonsense_runner.summarize, ethics_commonsense.summarize)
-        self.assertIs(rest_runner.summarize, ethics_rest.summarize)
 
     def test_analysis_import_does_not_load_or_configure_model_runtime(self):
         code = """

@@ -44,6 +44,8 @@ def main(argv: list[str] | None = None) -> None:
             "SciPy is required; from the checkout run "
             "'uv sync --locked --group analysis', or install the wheel with '[analysis]'"
         )
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        parser.error(str(exc))
 
 
 if __name__ == "__main__":
