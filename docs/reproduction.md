@@ -41,7 +41,7 @@ executables from the environment where you installed it.
 `pyproject.toml` declares the dependencies; `uv.lock` records exact resolved
 versions and artifact hashes, including transitive dependencies. `--locked`
 rejects a stale lockfile instead of silently resolving a different environment.
-Use a separate virtual environment from any existing GPU training environment;
+Use a separate virtual environment from any existing model evaluation environment;
 `uv sync` manages this checkout's `.venv` and can remove packages outside the
 selected dependency groups.
 
@@ -59,7 +59,7 @@ setup should use `--locked`.
 
 | Task | Command | Required inputs |
 |---|---|---|
-| Paper's pass@k figure | `uv run --locked --group analysis python scripts/plot_hero.py` | The committed three-way summary JSON files |
+| Paper's pass@k figure | `uv run --locked --group analysis python scripts/plot_hero.py` | The committed JSON files in `results/passk/1.5B/` and `results/passk/7B/` |
 | pass@k example | `uv run --locked --group analysis es-capacity-passk --example --out /tmp/passk-example --plot` | Synthetic correctness scores bundled with the package |
 | pass@k summaries | `uv run --locked --group analysis es-capacity-passk --results-dir PATH --out OUTPUT --label base --label trained --label rl --baseline base --plot` | Scored per-question evaluation JSONL files under `PATH/LABEL/BENCHMARK/` |
 | MMLU tables | `uv run --locked --group analysis es-capacity-mmlu --results-dir PATH --out OUTPUT` | `PATH/ARM/results.json` and `PATH/ARM/samples.jsonl` for each arm |
@@ -69,12 +69,18 @@ setup should use `--locked`.
 | GPQA tables | `uv run --locked --group analysis es-capacity-gpqa tables --results-dir PATH` | Reduced GPQA CSV files |
 | Weight-change plots | `uv run --locked --group analysis es-capacity-weights --scale 7B --results-dir PATH --out OUTPUT` | `PATH/SCALE-ES/` and `PATH/SCALE-RL/`, each containing `stats.csv` and `hist.csv` |
 
+The [results index](../results/README.md) describes the committed evaluation
+summaries: pass@k JSONs/plots, MMLU scores and the two ETHICS tables. These compact
+files contain aggregate results, not benchmark questions or generated answers.
+They are included in a Git clone, not the wheel or source distribution.
+
 The figure command overwrites `writeup/figures/hero_passk.png` and
 `writeup/figures/hero_passk.pdf`. Its numerical inputs are committed, but rendered
-files can differ across plotting environments. Apart from the bundled synthetic
-example, the other commands require data that is excluded from Git; a fresh clone cannot regenerate every paper result
-without obtaining or regenerating those inputs. The source raw evaluation data
-should be retained separately.
+files can differ across plotting environments. The synthetic example also works
+from included data. Recomputing MMLU/ETHICS statistics and pass@k curves from
+individual predictions requires the raw saved outputs, which are excluded from
+Git; aggregate tables cannot reconstruct those predictions. Retain new raw
+outputs locally or in separate storage.
 
 The ETHICS commands read all model-arm directories containing the selected
 sample file and replace `summary.csv` or `rest_summary.csv` in `--results-dir`.

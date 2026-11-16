@@ -6,6 +6,11 @@
 <a href="writeup/writeup.pdf"><img src='https://img.shields.io/badge/Write--up-PDF-red' alt='Write-up PDF'></a> <a href="https://huggingface.co/zocrate/Qwen2.5-7B-ES-math"><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-checkpoints-blue' alt='Checkpoints'></a>
 </div>
 
+This repository evaluates six existing Qwen2.5 checkpoints: base, ES and GRPO
+models at 1.5B and 7B. The main evaluations cover mathematical reasoning
+(pass@k), general knowledge (MMLU) and moral judgement (ETHICS). Download the
+checkpoints separately and supply their paths in `config.toml`.
+
 ## Overview
 
 Post-training with group relative policy optimisation (GRPO) can make a language model more likely to solve a maths problem on its first attempt, while narrowing the range of problems it can solve under repeated sampling ([Yue et al.](https://arxiv.org/abs/2504.13837)). Is this narrowing specific to GRPO, or does it also occur with alternative post-training methods?
@@ -64,6 +69,10 @@ These results show that maths-only evolutionary post-training can improve mathem
 
 ## Evaluation
 
+The study's evaluation summaries and plots are in [results/](results/README.md),
+organised by benchmark and model size. The repository takes existing checkpoints
+as inputs; no ES or GRPO training setup is required.
+
 To try saved-result analysis without models or benchmark downloads, install
 [uv](https://docs.astral.sh/uv/getting-started/installation/) and run from a clone:
 
@@ -111,7 +120,7 @@ See the [release procedure and installation instructions](RELEASING.md).
 
 ## Acknowledgements
 
-Built on [VsonicV/es-at-scale](https://github.com/VsonicV/es-at-scale) (ES training) and [LeapLabTHU/limit-of-RLVR](https://github.com/LeapLabTHU/limit-of-RLVR) (pass@k evaluation). GRPO checkpoints from [SimpleRL-Zoo](https://github.com/hkust-nlp/simpleRL-reason).
+Pass@k evaluation builds on [LeapLabTHU/limit-of-RLVR](https://github.com/LeapLabTHU/limit-of-RLVR). The study's ES checkpoints were produced with [VsonicV/es-at-scale](https://github.com/VsonicV/es-at-scale); GRPO checkpoints come from [SimpleRL-Zoo](https://github.com/hkust-nlp/simpleRL-reason).
 
 ## Citation
 

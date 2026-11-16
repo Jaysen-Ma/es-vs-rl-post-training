@@ -107,30 +107,22 @@ commonsense retains its archive/cache behaviour and the other subsets retain
 The write-up's grader-audit workflow is currently excluded from the published
 repository. Making that workflow reproducible is a separate follow-up; the packaging work does not add the ignored local scripts or raw benchmark text.
 
-## Evaluation environments and study setup references
+## Evaluation environment
 
-`external-repositories.toml` records the exact local checkout revisions inspected
-on 2026-11-05. These are setup reference points, not evidence that the historical
-experiments ran at precisely those commits. The experiment records do not yet
-establish that provenance. Branch names are hints; use the recorded commit IDs
-when reconstructing these checkouts.
+This repository evaluates the six downloaded checkpoints. Their training
+methods are described as study background in the paper; no training repository
+or training environment is needed to use these evaluation commands.
 
-The training repository is recorded as study background; evaluation users do not
-need to install or run it. The external repositories declare incompatible
-dependency versions:
+`external-repositories.toml` records the external maths evaluator's local
+checkout revision inspected on 2026-11-05. It is a setup reference, not verified
+historical run provenance. Use its commit ID when reconstructing that checkout.
+Checkpoint download sources are listed above and in `config.example.toml`.
 
-| Workflow | External declaration at the recorded revision |
-|---|---|
-| ES training (`es-at-scale/setup.py`) | `vllm==0.11.0`, `transformers==4.57.6` |
-| Maths evaluation (`limit-of-RLVR/math/requirements.txt`) | `vllm<=0.6.3`, `transformers<4.48`, `math-verify[antlr4_11_0]==0.6.0` |
-
-These declarations have not been validated as fresh GPU installations in this
-packaging step. The write-up records `math-verify` 0.9.0 for ES training; that
-package is not declared by the training repository's `setup.py`. Do not treat a
-current dependency file as a complete record of the environment used for the
-paper. A follow-up GPU validation should record Python, package versions, CUDA
-and driver versions, model and dataset revisions, repository commits and run
-settings together.
+At that revision, `limit-of-RLVR/math/requirements.txt` declares `vllm<=0.6.3`,
+`transformers<4.48` and `math-verify[antlr4_11_0]==0.6.0`. These declarations have
+not been validated as a fresh GPU installation. Future GPU validation should
+record Python, package versions, CUDA/driver versions, model and dataset
+revisions, evaluator commits and run settings together.
 
 Maths evaluation uses the external evaluation environment. The local MMLU,
 GPQA and ETHICS runners depend on the evaluation harness (`lm_eval`),

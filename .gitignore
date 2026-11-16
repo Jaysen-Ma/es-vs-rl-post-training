@@ -73,82 +73,29 @@ htmlcov/
 # Wandb
 wandb/
 
-# --- Raw evaluation/training artifacts -------------------------------------
-# Everything below is reproducible and is reduced to committed CSV/JSON summaries
-# by scripts/. The rule throughout: derived results in git, raw dumps out.
+# Results: publish only the reviewed evaluation summaries and figures below.
+# Training runs, model responses, benchmark text and arbitrary new outputs stay local.
+/results/**
+!/results/README.md
+!/results/passk/
+!/results/passk/1.5B/
+!/results/passk/7B/
+!/results/passk/1.5B/*_summary.json
+!/results/passk/7B/*_summary.json
+!/results/passk/1.5B/*_passk.png
+!/results/passk/7B/*_passk.png
+!/results/mmlu/
+!/results/mmlu/scores.csv
+!/results/ethics/
+!/results/ethics/summary.csv
+!/results/ethics/rest_summary.csv
+!/results/weights/
+!/results/weights/figures/
+!/results/weights/figures/weight_change_*.png
 
-# Raw per-shard pass@k generations (gigabytes; every completion in full).
-# Regenerate via scripts/passk/run_eval.sh, one arm at a time.
-# scripts/passk/analyze.py reads directly from these — nothing reduces them for
-# git, so they stay local only, and a torn-down eval box takes its per-question
-# record with it.
-results/*/base/
-results/*/trained/
-results/*/rl/
-results/*/*.log
-results/*_run.log
-
-# GPQA seed sweep (6 arms x 10 permutations), raw tree and reduced CSVs alike.
-# The raw lm_eval tree stays out because its samples_*.jsonl embed the verbatim
-# benchmark text — a presigned S3 URL in the GPQA corpus once tripped GitHub
-# secret scanning. The reduced CSVs stay out because GPQA is a side probe here:
-# the README carries its one table and its conclusion, and nothing else in the
-# repo depends on the artifacts. Regenerate both with scripts/gpqa/run_sweep.py
-# then scripts/gpqa/analyze.py.
-results/gpqa_results/
-results/gpqa/
-
-# MMLU forgetting probe. Same rule as GPQA: the raw lm_eval tree stays out
-# because samples.jsonl embeds the verbatim benchmark questions, ~14,042 of
-# them per arm. Per-subject accuracy is small enough to commit once there is a
-# table worth carrying, but it belongs in docs/ or the README as reduced
-# output, not as a raw dump. Regenerate with scripts/mmlu/run.py.
-results/mmlu_results/
-
-# ETHICS commonsense probe. samples.jsonl embeds the scenario text. The
-# official commonsense split is drawn from Reddit, so the raw tree stays out.
-# Regenerate with scripts/ethics/run.py.
-results/ethics_results/
-
-# Weight-movement analysis: histograms, summary CSVs and figures for how far
-# ES and RL post-training moved the parameters. Local-only apart from the two
-# per-parameter weight-change figures the README embeds; the rest regenerates
-# from scripts/weights/compare.py in ~30 min. Written as four stepped rules
-# because git cannot re-include a file whose parent directory is excluded, so
-# `results/weights/` followed by a negation would silently not work.
-results/weights/*
-!results/weights/figures/
-results/weights/figures/*
-!results/weights/figures/weight_change_*.png
-
-# Only the two headline runs (1.5b-sigma001-iter50, 7b-sigma001-iter50) are
-# git-tracked; every other run stays local only.
-results/7b-sigma001-iter100/
-results/7b-sigma0025-iter50/
-results/7b-sigma0025-b64-aborted/
-results/7b-sigma005-b64-aborted/
-results/7b-sigma01-b64-aborted/
-
-# W&B per-iteration series and derived plots for the 1.5B run — kept locally,
-# not committed (no script left in the repo regenerates the plots from it).
-results/1.5b-sigma001-iter50/wandb_curves.csv
-results/1.5b-sigma001-iter50/train_*.png
-
-# Raw trainer stdout (~1.6MB, 7 runs). training_curves.csv + inloop_eval.csv
-# were derived from these by a now-removed script; the CSVs stay committed as
-# the record, the raw logs stay local. Covered by `logs/` above; spelled out
-# here so the intent is obvious.
-results/logs/
-
-# Transient per-shard model copies from run_sharded_eval.sh (cleaned up on
-# exit via its EXIT trap; ignored defensively in case a run dies uncleanly)
+# Transient model copies created by the external maths evaluator.
 **/model_shards.*/
-
-# Staging area for trees pulled off a rented eval box. Raw and large (a full
-# 2-scale pass@k tree is ~2.2GB).
-results/results/
 .scratch/
 
-# Dropped grader audit (kept local only)
+# Historical grader-audit scripts remain local.
 scripts/grader_audit/
-results/grader_audit/
