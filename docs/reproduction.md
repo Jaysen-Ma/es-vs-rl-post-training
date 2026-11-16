@@ -62,7 +62,9 @@ setup should use `--locked`.
 
 ## Install a downloaded package
 
-Download the three files from the chosen GitHub release into one directory.
+When a release is available, download its three files from
+[GitHub Releases](https://github.com/Jaysen-Ma/es-vs-rl-post-training/releases)
+into one directory.
 Check the files and install the wheel in a separate environment:
 
 ```bash
@@ -76,6 +78,19 @@ The `[analysis]` extra installs the plotting and statistics dependencies. The
 example needs no models. These commands target Linux; GPU runtime validation
 remains deferred. For the locked checkout environment, use
 [the analysis setup above](#analysis-environment).
+
+## Check a source checkout
+
+Package code lives in `src/es_capacity/` and tests in `tests/`. To run the tests
+and check a fresh package installation from a clone:
+
+```bash
+uv run --locked --group analysis python -m unittest discover -s tests -v
+uv run --locked --group analysis python scripts/check_package.py
+```
+
+These checks use synthetic inputs and do not load models. CI runs the same
+checks on Python 3.10 and 3.12.
 
 ## What can be reproduced from a clone
 
