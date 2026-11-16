@@ -2,7 +2,6 @@
 
 import contextlib
 import csv
-import importlib.util
 import io
 import json
 from pathlib import Path
@@ -16,20 +15,8 @@ import numpy as np
 from es_capacity.analysis import ethics_rest as rest
 
 
-ROOT = Path(__file__).resolve().parents[1]
-
-
-def load_script(name, relative):
-    spec = importlib.util.spec_from_file_location(name, ROOT / relative)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-passk = load_script("passk_analysis", "scripts/passk/analyze.py")
-gpqa = load_script("gpqa_analysis", "scripts/gpqa/analyze.py")
-ethics = load_script("ethics_runner", "scripts/ethics/run.py")
-weights = load_script("weight_plot", "scripts/weights/plot.py")
+from es_capacity.analysis import gpqa, passk, weights
+from es_capacity.evaluation import ethics_commonsense as ethics
 
 
 class EvaluationTests(unittest.TestCase):

@@ -6,6 +6,11 @@
 <a href="writeup/writeup.pdf"><img src='https://img.shields.io/badge/Write--up-PDF-red' alt='Write-up PDF'></a> <a href="https://huggingface.co/zocrate/Qwen2.5-7B-ES-math"><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-checkpoints-blue' alt='Checkpoints'></a>
 </div>
 
+**TLDR:** Compare six Qwen2.5 models on maths (pass@k), general knowledge (MMLU)
+and moral judgement (ETHICS). Download the models, set their paths in
+`config.toml`, and use the commands below to run evaluations or analyse saved
+results.
+
 ## Overview
 
 Post-training with group relative policy optimisation (GRPO) can make a language model more likely to solve a maths problem on its first attempt, while narrowing the range of problems it can solve under repeated sampling ([Yue et al.](https://arxiv.org/abs/2504.13837)). Is this narrowing specific to GRPO, or does it also occur with alternative post-training methods?
@@ -64,6 +69,14 @@ These results show that maths-only evolutionary post-training can improve mathem
 
 ## Evaluation
 
+The study's evaluation summaries and plots are in [results/](results/README.md),
+organised by benchmark and model size. The repository takes existing checkpoints
+as inputs; no ES or GRPO training setup is required.
+
+Cloning the repository and installing a wheel provide the same `es-capacity-*`
+commands for model evaluation, saved-result analysis and plotting. A clone also
+includes the paper, committed study results and repository utilities.
+
 To try saved-result analysis without models or benchmark downloads, install
 [uv](https://docs.astral.sh/uv/getting-started/installation/) and run from a clone:
 
@@ -72,8 +85,11 @@ uv sync --locked --group analysis
 uv run --locked --group analysis es-capacity-passk --example --out /tmp/passk-example --plot
 ```
 
-This writes a summary and plot from bundled synthetic scores. See the
-[reproduction guide](docs/reproduction.md) for real input formats, available
+The setup installs the package from the checkout. This command writes a summary
+and plot from bundled synthetic scores. For a wheel installation, install its
+`[analysis]` extra and run `es-capacity-passk --example --out OUTPUT --plot` in
+that environment; see the [installation instructions](docs/reproduction.md#install-a-downloaded-package).
+See the [reproduction guide](docs/reproduction.md) for real input formats, available
 commands and which study results can be regenerated from included files.
 
 ### Evaluate downloaded models
@@ -81,8 +97,9 @@ commands and which study results can be regenerated from included files.
 [Download links for all six checkpoints](docs/model_evaluation.md#download-checkpoints)
 and [model configuration instructions](docs/model_evaluation.md#model-and-data-paths)
 are in the evaluation guide. You download the models yourself and provide their
-independent local paths in `config.toml`; the runners do not fall back to Hub
-model downloads. No training is required.
+independent local paths in `config.toml`. The same file holds optional ETHICS
+dataset and maths-harness paths. The runners do not fall back to Hub model
+downloads. No training is required.
 
 In an existing GPU evaluation environment with this package installed:
 
@@ -93,17 +110,27 @@ es-capacity-evaluate mmlu --config config.toml --arms 7B-base 7B-ES 7B-RL --out 
 
 The [model-evaluation guide](docs/model_evaluation.md) covers MMLU, GPQA, all five
 ETHICS subsets, the external maths harness and CPU checkpoint comparison. It
-states the runtime requirements and validation limits. The old script commands
-remain available as compatibility launchers.
+states the runtime requirements and validation limits. Model execution requires
+the separate model runtime described there, whichever installation method you use.
+Maths generation currently uses the external evaluator through the repository
+wrapper; its saved-output analysis and plotting use the installed commands.
 
-For the source layout, tests and CI, see the [contributor guide](docs/development.md).
-Versioned downloads, when published, are on
-[GitHub Releases](https://github.com/Jaysen-Ma/es-vs-rl-post-training/releases);
-see the [release notes](CHANGELOG.md) and [installation instructions](RELEASING.md#install-a-release).
+Reusable code lives in `src/es_capacity/` and tests in `tests/`. `scripts/` holds
+three utilities: package validation (`check_package.py`), the combined paper
+figure (`plot_hero.py`) and the external maths evaluator wrapper
+(`passk/run_eval.sh`). Run the tests with:
+
+```bash
+uv run --locked --group analysis python -m unittest discover -s tests -v
+```
+
+CI also checks fresh package installations on Python 3.10 and 3.12. Versioned
+release notes and downloads, when published, are on
+[GitHub Releases](https://github.com/Jaysen-Ma/es-vs-rl-post-training/releases).
 
 ## Acknowledgements
 
-Built on [VsonicV/es-at-scale](https://github.com/VsonicV/es-at-scale) (ES training) and [LeapLabTHU/limit-of-RLVR](https://github.com/LeapLabTHU/limit-of-RLVR) (pass@k evaluation). GRPO checkpoints from [SimpleRL-Zoo](https://github.com/hkust-nlp/simpleRL-reason).
+Pass@k evaluation builds on [LeapLabTHU/limit-of-RLVR](https://github.com/LeapLabTHU/limit-of-RLVR). The study's ES checkpoints were produced with [VsonicV/es-at-scale](https://github.com/VsonicV/es-at-scale); GRPO checkpoints come from [SimpleRL-Zoo](https://github.com/hkust-nlp/simpleRL-reason).
 
 ## Citation
 

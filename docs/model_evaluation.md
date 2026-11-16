@@ -1,12 +1,14 @@
 # Models and evaluation
 
-Use this guide to evaluate checkpoints you download yourself, or to compare their
-weights. No training step is required. Model execution needs a separate GPU
-evaluation environment; checkpoint comparison runs on the CPU with PyTorch and
-SafeTensors. Neither runtime is installed by the saved-result analysis extra.
+**TLDR:** Download the models, list their paths in `config.toml`, then run the
+evaluation commands. This guide explains the setup, required data and where
+results are saved. Model evaluation needs a GPU environment.
 
-For existing predictions, use [saved-result analysis](reproduction.md). The
-[contributor guide](development.md) explains the source layout and tests.
+Checkpoint weight comparison runs on the CPU with PyTorch and SafeTensors.
+The `analysis` extra does not install model-evaluation or checkpoint-comparison
+libraries.
+
+For existing predictions, use [saved-result analysis](reproduction.md).
 
 ## Download checkpoints
 
@@ -34,9 +36,10 @@ checkpoint repositories. Users download checkpoint files themselves and provide
 local paths. MMLU, GPQA, ETHICS, maths evaluation and checkpoint analysis share the
 same resolver.
 
-Copy `config.example.toml` to `config.toml` and edit the `[models]` table. The six
-paths are independent; directories can have any names. Absolute paths and `~`
-are supported. Relative paths are anchored to the configuration file's directory,
+Copy `config.example.toml` to `config.toml`. Set checkpoint paths under `[models]`
+and optional dataset/harness locations under `[paths]`. This is the only user
+configuration file. The six model paths are independent; directories can have
+any names. Absolute paths and `~` are supported. Relative paths are anchored to the configuration file's directory,
 not the shell's current directory. Shell variables such as `$HOME` are not
 expanded inside TOML strings. `config.toml` is ignored by Git.
 
@@ -45,6 +48,10 @@ expanded inside TOML strings. `config.toml` is ignored by Git.
 "7B-base" = "/data/checkpoints/base"
 "7B-ES" = "/another/disk/es-model"
 "7B-RL" = "../downloaded-checkpoints/grpo"
+
+[paths]
+ethics_data_dir = "/data/ethics/ethics"
+math_eval_dir = "/code/limit-of-RLVR/math/examples/math_eval"
 ```
 
 You may configure a subset and select it with `--arms`. Commands without an arms
@@ -79,53 +86,46 @@ models before dataset preparation and pass the selected config file to workers.
 Existing scripts that relied on automatic model downloads must now download the
 models themselves and configure their paths.
 
-Maths evaluation uses the same config and requires this package installed in its
-own evaluation environment:
+Maths evaluation reads both checkpoint paths and `paths.math_eval_dir` from
+that same file. Install this package in the external harness's evaluation
+environment, then run from the repository root:
 
 ```bash
-export MATH_EVAL_DIR=/path/to/limit-of-RLVR/math/examples/math_eval
 bash scripts/passk/run_eval.sh --config config.toml 7B-base base my-run
 ```
 
-The optional `config.sh` still supplies shell settings to the maths wrapper.
-`config.example.sh` now illustrates the external harness path and config-file
-selection; per-model paths belong in TOML. Existing exported model-path variables
-and direct local paths remain accepted by the maths wrapper. Its argument is
-resolved and checked before it changes directory into the external harness.
-Python scripts do not source shell configuration files.
+The harness directory must contain `run_sharded_eval.sh`. Paths are resolved
+before entering the harness or creating run outputs. The wrapper does not load
+shell configuration files.
 
-`ETHICS_DATA_DIR` selects the unpacked dataset containing `deontology/`, `justice/`,
-`virtue/` and `utilitarianism/`. `es-capacity-evaluate ethics --subset rest --data-dir PATH` takes
-precedence; the `/tmp/ethics/ethics` default is retained. Output-directory defaults
-are unchanged. Analysis of saved outputs does not require model configuration.
+`paths.ethics_data_dir` is the unpacked ETHICS root containing `commonsense/`,
+`deontology/`, `justice/`, `virtue/` and `utilitarianism/`. Commonsense reads
+`commonsense/cm_test.csv`; the other four subsets read their CSVs under this root.
+`--csv` overrides the commonsense input; `--data-dir` overrides the root for the
+other subsets. Configured paths take precedence over the legacy `ETHICS_DATA_DIR`
+and `MATH_EVAL_DIR` environment fallbacks. Without a configured dataset root,
+commonsense retains its archive/cache behaviour and the other subsets retain
+`/tmp/ethics/ethics`. Analysis of saved outputs needs no model configuration.
 
 The write-up's grader-audit workflow is currently excluded from the published
 repository. Making that workflow reproducible is a separate follow-up; the packaging work does not add the ignored local scripts or raw benchmark text.
 
-## Evaluation environments and study setup references
+## Evaluation environment
 
-`external-repositories.toml` records the exact local checkout revisions inspected
-on 2026-11-05. These are setup reference points, not evidence that the historical
-experiments ran at precisely those commits. The experiment records do not yet
-establish that provenance. Branch names are hints; use the recorded commit IDs
-when reconstructing these checkouts.
+This repository evaluates the six downloaded checkpoints. Their training
+methods are described as study background in the paper; no training repository
+or training environment is needed to use these evaluation commands.
 
-The training repository is recorded as study background; evaluation users do not
-need to install or run it. The external repositories declare incompatible
-dependency versions:
+`external-repositories.toml` records the external maths evaluator's local
+checkout revision inspected on 2026-11-05. It is a setup reference, not verified
+historical run provenance. Use its commit ID when reconstructing that checkout.
+Checkpoint download sources are listed above and in `config.example.toml`.
 
-| Workflow | External declaration at the recorded revision |
-|---|---|
-| ES training (`es-at-scale/setup.py`) | `vllm==0.11.0`, `transformers==4.57.6` |
-| Maths evaluation (`limit-of-RLVR/math/requirements.txt`) | `vllm<=0.6.3`, `transformers<4.48`, `math-verify[antlr4_11_0]==0.6.0` |
-
-These declarations have not been validated as fresh GPU installations in this
-packaging step. The write-up records `math-verify` 0.9.0 for ES training; that
-package is not declared by the training repository's `setup.py`. Do not treat a
-current dependency file as a complete record of the environment used for the
-paper. A follow-up GPU validation should record Python, package versions, CUDA
-and driver versions, model and dataset revisions, repository commits and run
-settings together.
+At that revision, `limit-of-RLVR/math/requirements.txt` declares `vllm<=0.6.3`,
+`transformers<4.48` and `math-verify[antlr4_11_0]==0.6.0`. These declarations have
+not been validated as a fresh GPU installation. Future GPU validation should
+record Python, package versions, CUDA/driver versions, model and dataset
+revisions, evaluator commits and run settings together.
 
 Maths evaluation uses the external evaluation environment. The local MMLU,
 GPQA and ETHICS runners depend on the evaluation harness (`lm_eval`),
@@ -133,17 +133,20 @@ Hugging Face Datasets and vLLM. They are not covered by `uv.lock` yet. Setup for
 those workflows must be validated on suitable hardware before it is described
 as reproducible.
 
-Install the shared package into an existing GPU environment with:
+From a clone, install the shared package into an existing GPU environment with:
 
 ```bash
 python -m pip install -e .
 ```
 
+For a downloaded wheel, install its local filename instead of `-e .`. Both
+installation methods provide the same evaluation commands.
+
 The core installation has no third-party dependencies on Python 3.11 or newer;
 Python 3.10 additionally installs `tomli` to read TOML configuration. This command
 adds the shared package without selecting the analysis extra or GPU runtime.
 ETHICS statistical summaries still require SciPy in that environment. Keep using
-its interpreter for installed commands or `python scripts/...`. Users evaluate downloaded
+its interpreter for the installed commands. Users evaluate downloaded
 checkpoints; no training step is required.
 
 ## MMLU model evaluation
@@ -159,8 +162,8 @@ Download the desired checkpoints, configure their paths as described in
 explicit output directory:
 
 ```bash
-es-capacity-models check --config /data/models.toml --arms 7B-base 7B-ES 7B-RL
-es-capacity-evaluate mmlu --config /data/models.toml --arms 7B-base 7B-ES 7B-RL --out /data/mmlu-run
+es-capacity-models check --config /data/config.toml --arms 7B-base 7B-ES 7B-RL
+es-capacity-evaluate mmlu --config /data/config.toml --arms 7B-base 7B-ES 7B-RL --out /data/mmlu-run
 ```
 
 Run these commands with the evaluation environment's executables. When no arms
@@ -210,9 +213,7 @@ sample logging remain unchanged. The worker defaults `VLLM_USE_FLASHINFER_SAMPLE
 to `0` before runtime imports and retains an existing user value. Importing the
 package or showing help does not change the parent environment.
 
-The legacy `python scripts/mmlu/run.py` command delegates to the installed CLI
-and retains its flags and `results/mmlu_results` default output path. New installed
-commands require `--out`. Help and model preflight work with the core package.
+Evaluation commands require `--out`. Help and model preflight work with the core package.
 CI tests orchestration, simulated runtime calls, output formats and worker cleanup
 without loading model weights. Actual GPU inference and a fresh evaluation
 environment remain unvalidated in this packaging work.
@@ -224,7 +225,7 @@ downloaded checkpoints and the same model configuration as MMLU. This command
 runs models; `es-capacity-gpqa` analyses the saved outputs.
 
 ```bash
-es-capacity-evaluate gpqa --config /data/models.toml --arms 7B-base 7B-ES 7B-RL --seeds 0 1 2 3 4 5 6 7 8 9 --out /data/gpqa-sweep
+es-capacity-evaluate gpqa --config /data/config.toml --arms 7B-base 7B-ES 7B-RL --seeds 0 1 2 3 4 5 6 7 8 9 --out /data/gpqa-sweep
 es-capacity-gpqa check --results-dir /data/gpqa-sweep
 es-capacity-gpqa summarize --results-dir /data/gpqa-sweep --out /data/gpqa-summary --pair 7B-ES:7B-base --pair 7B-RL:7B-base
 ```
@@ -273,8 +274,7 @@ The parent continues after a failed arm and returns status 1 if any worker fails
 Orchestration and model execution live in `src/es_capacity/evaluation/gpqa.py`,
 with shared command handling in `src/es_capacity/cli/evaluate.py`. Workers launch
 the installed module using the current interpreter, without a checkout path.
-`python scripts/gpqa/run_sweep.py` remains a compatibility launcher, preserving
-the flags and `results/gpqa_results` output default. The core package can show
+The core package can show
 help and check checkpoint paths, while actual evaluation needs the separate
 model runtime. Tests simulate that runtime and check output compatibility with
 the analyzer; actual GPU inference and a fresh GPU environment remain unvalidated.
@@ -287,11 +287,14 @@ described above and SciPy for the automatic statistical summary. The separate
 `es-capacity-ethics` command analyses saved predictions without loading models.
 
 ```bash
-es-capacity-evaluate ethics --subset commonsense --config /data/models.toml --arms 7B-base 7B-ES 7B-RL --csv /data/ethics/commonsense/cm_test.csv --out /data/ethics-run
+es-capacity-evaluate ethics --subset commonsense --config /data/config.toml --arms 7B-base 7B-ES 7B-RL --out /data/ethics-run
 ```
 
 `--csv` selects an existing official test CSV with `label` and `input` columns.
-With no CSV selected, the runner reuses `OUTPUT/cm_test.jsonl` if present;
+With no `--csv`, the runner first uses `paths.ethics_data_dir/commonsense/cm_test.csv`
+when a dataset root is configured. A missing configured CSV fails before writing
+output or downloading data. With neither a CSV nor dataset root selected, it
+reuses `OUTPUT/cm_test.jsonl` if present;
 otherwise it reuses or downloads the official `ethics.tar` archive under `--out`
 and reads its commonsense test split. Checkpoints are checked before data
 preparation or worker startup. An explicit missing CSV is also rejected before
@@ -321,9 +324,7 @@ accuracy, yes-rate, label-specific accuracies and paired McNemar comparisons.
 It retains other model arms already present in that output directory. Scoring,
 sample formats, result metadata and worker cleanup are preserved.
 
-The legacy `python scripts/ethics/run.py` command delegates to the installed CLI
-and retains its flags and default `results/ethics_results` directory anchored to
-the checkout root. The installed command requires `--out` and `--subset`. Importing
+The command requires `--out` and `--subset`. Importing
 the runner or showing help does not load the runtime or change environment
 variables. Core-package checks exercise task preparation from the installed wheel;
 worker tests simulate model scoring and pass the outputs through the analysis
@@ -332,23 +333,21 @@ code. Actual GPU inference remains unvalidated.
 ## Other ETHICS subsets
 
 ```bash
-es-capacity-evaluate ethics --subset rest --config /data/models.toml --arms 7B-base 7B-ES 7B-RL --data-dir /data/ethics --out /data/ethics-run
+es-capacity-evaluate ethics --subset rest --config /data/config.toml --arms 7B-base 7B-ES 7B-RL --out /data/ethics-run
 ```
 
 `rest` evaluates deontology, justice, virtue and utilitarianism together. The
 dataset root must contain `deontology/deontology_test.csv`,
 `justice/justice_test.csv`, `virtue/virtue_test.csv` and
-`utilitarianism/util_test.csv`. `--data-dir` overrides `ETHICS_DATA_DIR`, then the
-existing `/tmp/ethics/ethics` fallback. Missing inputs fail before writing output.
+`utilitarianism/util_test.csv`. `--data-dir` overrides `paths.ethics_data_dir`,
+then the legacy `ETHICS_DATA_DIR` and `/tmp/ethics/ethics` fallbacks. Missing inputs fail before writing output.
 The default model order remains the three 7B arms followed by the three 1.5B arms.
 
 Preparation writes `rest_data/` JSONLs and `rest_tasks/` YAMLs with quoted absolute
 data paths. Contrast groups, reply choices and the two orderings of each utility
 pair are preserved. Each worker writes `ARM/rest_samples.jsonl` and
 `ARM/rest_results.json`; `rest_summary.csv` is refreshed after successful workers.
-Commonsense files remain separate. The legacy `scripts/ethics/run_rest.py`
-launcher retains its flags and checkout-relative output default. Scoring is
-always zero-shot for these four subsets; `--csv` is for commonsense only.
+Commonsense files remain separate. Scoring is always zero-shot for these four subsets; `--csv` is for commonsense only.
 
 ## Checkpoint comparison
 
@@ -356,15 +355,14 @@ always zero-shot for these four subsets; `--csv` is for commonsense only.
 CPU and writes the inputs for weight-distribution plotting:
 
 ```bash
-es-capacity-compare-weights --config /data/models.toml --scale 7B --arms ES RL --out /data/weight-comparisons
+es-capacity-compare-weights --config /data/config.toml --scale 7B --arms ES RL --out /data/weight-comparisons
 es-capacity-weights --scale 7B --results-dir /data/weight-comparisons --out /data/weight-figures
 ```
 
 Install this package into an environment with PyTorch and SafeTensors. These
 libraries are outside the locked analysis environment; command help and model
 preflight do not import them. Model paths use the shared TOML configuration.
-The installed command requires `--out`; the legacy `scripts/weights/compare.py`
-launcher retains its `results/weights` default.
+The command requires an explicit `--out` directory.
 
 The algorithm in `src/es_capacity/analysis/weight_comparison.py` streams the same
 tensor chunks in two passes, retaining raw units, shared base/trained histogram

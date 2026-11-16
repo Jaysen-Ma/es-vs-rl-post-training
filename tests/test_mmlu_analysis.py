@@ -1,7 +1,6 @@
 """Saved MMLU table, pairing and installed-command contracts."""
 
 import contextlib
-import importlib.util
 import io
 import json
 from pathlib import Path
@@ -15,7 +14,6 @@ from es_capacity.analysis import mmlu
 from es_capacity.cli.mmlu import main
 
 
-ROOT = Path(__file__).resolve().parents[1]
 
 
 def write_arm(root, arm, scores):
@@ -49,6 +47,17 @@ def fixture(root):
 
 
 class MmluAnalysisTests(unittest.TestCase):
+    def test_equally_truncated_samples_are_rejected_before_writing(self):
+        fixture(self.inputs)
+        for samples in self.inputs.glob("*/samples.jsonl"):
+            samples.write_text("".join(samples.read_text().splitlines(keepends=True)[:4]))
+        with contextlib.redirect_stderr(io.StringIO()) as error:
+            with self.assertRaises(SystemExit) as raised:
+                self.call_cli()
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("reports 8", error.getvalue())
+        self.assertFalse(self.out.exists())
+
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
@@ -88,23 +97,6 @@ class MmluAnalysisTests(unittest.TestCase):
             f"\nn = 8 questions, seed 0. wrote {self.out / 'scores.csv'}\n")
         self.assertEqual(before, {p: p.read_bytes() for p in self.inputs.rglob("*") if p.is_file()})
 
-    def test_legacy_launcher_preserves_default_and_explicit_output_locations(self):
-        fixture(self.inputs)
-        expected = self.call_cli()
-        spec = importlib.util.spec_from_file_location("mmlu_tables", ROOT / "scripts/mmlu/tables.py")
-        launcher = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(launcher)
-        self.assertIs(launcher.correctness, mmlu.correctness)
-        output = io.StringIO()
-        with contextlib.redirect_stdout(output):
-            launcher.main(["--sweep-root", str(self.inputs)])
-        self.assertEqual((self.inputs / "scores.csv").read_bytes(), (self.out / "scores.csv").read_bytes())
-        self.assertEqual(output.getvalue(), expected.replace(str(self.out), str(self.inputs)))
-        with patch.object(launcher, "analyze") as analyze:
-            launcher.main([])
-            analyze.assert_called_once_with([
-                "--results-dir", "results/mmlu_results", "--out", "results/mmlu_results",
-            ])
 
     def test_invalid_inputs_fail_before_creating_output(self):
         fixture(self.inputs)

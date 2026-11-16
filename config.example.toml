@@ -3,6 +3,7 @@
 # Directories may be anywhere and may have any names. Relative paths are resolved
 # relative to this file. '~' is expanded; shell variables such as '$HOME' are not.
 # Keep only the entries you use and select those arms with --arms.
+# The optional [paths] entries below serve the ETHICS and maths workflows.
 
 [models]
 # https://huggingface.co/Qwen/Qwen2.5-1.5B
@@ -17,3 +18,10 @@
 "7B-ES" = "/path/to/es-7b"
 # https://huggingface.co/hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo
 "7B-RL" = "/path/to/grpo-7b"
+
+[paths]
+# Unpacked dataset root containing commonsense/, deontology/, justice/, virtue/
+# and utilitarianism/. Used by both ETHICS evaluation commands.
+# ethics_data_dir = "/path/to/ethics/ethics"
+# External limit-of-RLVR maths harness; needed only for scripts/passk/run_eval.sh.
+# math_eval_dir = "/path/to/limit-of-RLVR/math/examples/math_eval"

@@ -2,7 +2,6 @@
 
 import contextlib
 import copy
-import importlib.util
 import io
 import json
 from pathlib import Path
@@ -16,7 +15,6 @@ from es_capacity.analysis import gpqa
 from es_capacity.cli.gpqa import main
 
 
-ROOT = Path(__file__).resolve().parents[1]
 
 
 def fixture(root):
@@ -211,28 +209,6 @@ class GpqaAnalysisTests(unittest.TestCase):
         self.assertIn("uv sync --locked --group analysis", error.getvalue())
         self.assertFalse(self.out.exists())
 
-    def test_legacy_launchers_delegate_and_preserve_flags(self):
-        modules = []
-        for script in ("analyze.py", "tables.py"):
-            spec = importlib.util.spec_from_file_location(script, ROOT / "scripts/gpqa" / script)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            modules.append(module)
-        analysis, tables = modules
-        self.assertIs(analysis.load_arm, gpqa.load_arm)
-        with contextlib.redirect_stdout(io.StringIO()) as output:
-            analysis.main(["--sweep-root", str(self.inputs), "--out", str(self.out),
-                           "--pair", "7B-ES:7B-base"])
-        self.assertIn("invariants OK", output.getvalue())
-        with contextlib.redirect_stdout(io.StringIO()) as output:
-            tables.main(["--dir", str(self.out)])
-        self.assertEqual(output.getvalue(), EXPECTED_TABLES)
-        with patch.object(analysis, "analyze") as run:
-            analysis.main(["--sweep-root", "input", "--check"])
-            run.assert_called_once_with(["check", "--results-dir", "input"])
-        with patch.object(tables, "analyze") as run:
-            tables.main([])
-            run.assert_called_once_with(["tables", "--results-dir", "results/gpqa"])
 
     def test_help_imports_no_optional_analysis_or_model_libraries(self):
         code = """

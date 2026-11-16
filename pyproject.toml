@@ -16,7 +16,7 @@ dependencies = ["tomli>=2,<3; python_version < '3.11'"]
 Repository = "https://github.com/Jaysen-Ma/es-vs-rl-post-training"
 
 [project.scripts]
-es-capacity-ethics = "es_capacity.analysis.ethics_cli:main"
+es-capacity-ethics = "es_capacity.cli.ethics:main"
 es-capacity-models = "es_capacity.cli.models:main"
 es-capacity-passk = "es_capacity.cli.passk:main"
 es-capacity-mmlu = "es_capacity.cli.mmlu:main"
@@ -49,14 +49,10 @@ include = [
     "/uv.lock",
     "/.python-version",
     "/README.md",
-    "/DEVELOPMENT.md",
     "/docs/reproduction.md",
     "/docs/model_evaluation.md",
-    "/docs/development.md",
-    "/CHANGELOG.md",
-    "/RELEASING.md",
+    "/docs/releasing.md",
     "/LICENSE",
-    "/config.example.sh",
     "/config.example.toml",
     "/external-repositories.toml",
 ]

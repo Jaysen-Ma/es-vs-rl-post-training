@@ -66,10 +66,12 @@ def summarize(results_dir: Path) -> list[dict]:
     rows = []
     for arm in arms:
         base = f"{arm.split('-')[0]}-base"
+        if arm in trained and ok[arm].keys() != ok[base].keys():
+            raise ValueError(f"{arm} and {base}: question IDs do not match")
+        if not ok[arm] or len(ok[arm]) != data[arm]["n"]:
+            raise ValueError(f"{arm}: samples.jsonl contains {len(ok[arm])} questions but results.json reports {data[arm]['n']}")
         gained = lost = p_raw = p_adj = ""
         if arm in trained:
-            if ok[arm].keys() != ok[base].keys():
-                raise ValueError(f"{arm} and {base}: question IDs do not match")
             from scipy.stats import binomtest
 
             gained = sum(1 for k in ok[arm] if ok[arm][k] and not ok[base][k])

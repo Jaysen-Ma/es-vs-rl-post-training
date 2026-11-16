@@ -3,7 +3,6 @@
 import contextlib
 import csv
 import glob
-import importlib.util
 import io
 import json
 import os
@@ -20,7 +19,6 @@ from es_capacity.evaluation import ethics_rest as rest
 from es_capacity.models import MODELS
 
 
-ROOT = Path(__file__).resolve().parents[1]
 
 
 def write_data(root):
@@ -164,18 +162,11 @@ class EthicsRestEvaluationTests(unittest.TestCase):
         self.assertTrue((self.out / "7B-base/rest_results.json").is_file())
         self.assertFalse((self.out / "7B-base/samples.jsonl").exists())
 
-    def test_subset_defaults_and_legacy_launcher(self):
+    def test_subset_defaults_select_all_six_arms_in_study_order(self):
         with patch.object(rest.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run:
             with patch.object(rest, "summarize"), contextlib.redirect_stdout(io.StringIO()):
                 main(self.arguments())
         self.assertEqual([call.args[0][call.args[0].index("--_arm") + 1] for call in run.call_args_list], rest.DEFAULT_ARMS)
-        spec = importlib.util.spec_from_file_location("rest_launcher", ROOT / "scripts/ethics/run_rest.py")
-        launcher = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(launcher)
-        with patch.object(launcher, "evaluate") as evaluate:
-            launcher.main(["--arms", "7B-base"])
-            evaluate.assert_called_once_with(["ethics", "--subset", "rest", "--arms", "7B-base"],
-                                             default_ethics_output=ROOT / "results/ethics_results")
 
 
 if __name__ == "__main__":

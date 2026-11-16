@@ -6,14 +6,13 @@ from pathlib import Path
 from es_capacity.cli.models import add_config_argument, validate_model_args
 from es_capacity.evaluation import ethics_commonsense, ethics_rest, gpqa, mmlu
 from es_capacity.config import ethics_data_dir
-from es_capacity.models import MODELS
+from es_capacity.models import MODELS, ModelConfigurationError
 
 
-def _add_model_arguments(command, default_output, *, gpu_memory, max_model_len, default_arms=None):
+def _add_model_arguments(command, *, gpu_memory, max_model_len, default_arms=None):
     command.add_argument("--arms", nargs="+", choices=list(MODELS),
                          default=list(MODELS) if default_arms is None else list(default_arms))
-    command.add_argument("--out", type=Path, default=default_output,
-                         required=default_output is None, help="output root for evaluation files")
+    command.add_argument("--out", type=Path, required=True, help="output root for evaluation files")
     command.add_argument("--dtype", default="bfloat16")
     command.add_argument("--gpu-memory-utilization", type=float, default=gpu_memory)
     command.add_argument("--max-model-len", type=int, default=max_model_len)
@@ -21,7 +20,7 @@ def _add_model_arguments(command, default_output, *, gpu_memory, max_model_len, 
     add_config_argument(command)
 
 
-def main(argv=None, *, default_mmlu_output=None, default_gpqa_output=None, default_ethics_output=None):
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     command = commands.add_parser(
@@ -29,7 +28,7 @@ def main(argv=None, *, default_mmlu_output=None, default_gpqa_output=None, defau
         description="Evaluate downloaded models on MMLU in an existing GPU "
         "evaluation environment. Use es-capacity-mmlu to analyse saved outputs.",
     )
-    _add_model_arguments(command, default_mmlu_output, gpu_memory=0.25, max_model_len=1280)
+    _add_model_arguments(command, gpu_memory=0.25, max_model_len=1280)
     command.add_argument("--num-fewshot", type=int, default=0)
     command.add_argument("--seed", type=int, default=0)
     command.add_argument("--max-num-batched-tokens", type=int, default=2048)
@@ -42,7 +41,7 @@ def main(argv=None, *, default_mmlu_output=None, default_gpqa_output=None, defau
         description="Evaluate GPQA-diamond with one model per worker and multiple "
         "answer-order seeds. Use es-capacity-gpqa to analyse saved outputs.",
     )
-    _add_model_arguments(command, default_gpqa_output, gpu_memory=0.5, max_model_len=4096)
+    _add_model_arguments(command, gpu_memory=0.5, max_model_len=4096)
     command.add_argument("--seeds", nargs="+", type=int, default=list(range(10)),
                          help="distinct nonnegative answer-order seeds; default: 0 through 9")
     command.add_argument("--batch-size", default="auto")
@@ -53,7 +52,7 @@ def main(argv=None, *, default_mmlu_output=None, default_gpqa_output=None, defau
         description="Evaluate moral scenarios using local task data. "
         "Use es-capacity-ethics to analyse saved predictions.",
     )
-    _add_model_arguments(command, default_ethics_output, gpu_memory=0.25, max_model_len=2048,
+    _add_model_arguments(command, gpu_memory=0.25, max_model_len=2048,
                          default_arms=ethics_commonsense.DEFAULT_ARMS)
     command.set_defaults(arms=None)
     command.add_argument("--subset", choices=("commonsense", "rest"), required=True)
@@ -79,11 +78,20 @@ def main(argv=None, *, default_mmlu_output=None, default_gpqa_output=None, defau
     if args.command == "ethics" and args.subset == "rest":
         if args.csv is not None or args.num_fewshot != 0:
             command.error("--csv and nonzero --num-fewshot apply only to commonsense")
-        args.data_dir = (args.data_dir if args.data_dir is not None else ethics_data_dir()).expanduser().resolve()
+        args.data_dir = (args.data_dir if args.data_dir is not None else ethics_data_dir(args.config)).expanduser().resolve()
         if not args.data_dir.is_dir():
-            command.error(f"missing {args.data_dir}; set --data-dir or ETHICS_DATA_DIR to the unpacked ETHICS directory")
+            command.error(f"missing {args.data_dir}; set paths.ethics_data_dir in config.toml or --data-dir to the unpacked ETHICS directory")
     elif args.command == "ethics" and args.data_dir is not None:
         command.error("--data-dir applies only to --subset rest; use --csv for commonsense")
+    # The parent selects/converts the CSV; workers reuse its prepared JSONL.
+    if (args.command == "ethics" and args.subset == "commonsense"
+            and args.csv is None and args._arm is None):
+        try:
+            data_dir = ethics_data_dir(args.config, default=None)
+        except ModelConfigurationError as exc:
+            command.error(str(exc))
+        if data_dir is not None:
+            args.csv = data_dir / "commonsense/cm_test.csv"
     if args.command == "ethics" and args.csv is not None:
         args.csv = args.csv.expanduser().resolve()
         if not args.csv.is_file():
@@ -105,10 +113,10 @@ def main(argv=None, *, default_mmlu_output=None, default_gpqa_output=None, defau
         command.error(
             f"missing evaluation dependency {exc.name!r}; use an existing GPU "
             "evaluation environment with lm_eval, Datasets and vLLM, then install "
-            "this package into that environment. See DEVELOPMENT.md. "
+            "this package into that environment. See docs/model_evaluation.md. "
             "The analysis extra does not install the model runtime."
         )
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         if args.command != "ethics":
             raise
         command.error(str(exc))

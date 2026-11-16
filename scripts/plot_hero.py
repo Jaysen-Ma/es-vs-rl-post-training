@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Hero figure: pass@k of base / ES / GRPO, 2x4 grid (rows 1.5B, 7B).
 
-Reads results/{run}/{bench}_threeway_summary.json and writes
+Reads results/passk/{scale}/{bench}_summary.json and writes
 writeup/figures/hero_passk.png and hero_passk.pdf.
 
 Usage: python scripts/plot_hero.py
@@ -15,7 +15,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-RUNS = [("Qwen2.5-1.5B", "1.5b-sigma001-iter50"), ("Qwen2.5-7B", "7b-sigma001-iter50")]
+RUNS = [("Qwen2.5-1.5B", "1.5B"), ("Qwen2.5-7B", "7B")]
 BENCHES = [("aime24", "AIME24"), ("math500", "MATH500"),
            ("minerva_math", "Minerva Math"), ("olympiadbench", "OlympiadBench")]
 ARMS = [("base", "Base", "#4d4d4d", "o"),
@@ -26,9 +26,9 @@ ARMS = [("base", "Base", "#4d4d4d", "o"),
 def main() -> None:
     plt.rcParams.update({"font.size": 11, "axes.titlesize": 12})
     fig, axes = plt.subplots(2, 4, figsize=(16, 7), constrained_layout=True)
-    for r, (model, run) in enumerate(RUNS):
+    for r, (model, scale) in enumerate(RUNS):
         for c, (bench, title) in enumerate(BENCHES):
-            d = json.loads((ROOT / "results" / run / f"{bench}_threeway_summary.json").read_text())
+            d = json.loads((ROOT / "results" / "passk" / scale / f"{bench}_summary.json").read_text())
             ax = axes[r, c]
             for key, label, colour, marker in ARMS:
                 ks = d["ks_rl"] if key == "rl" else d["ks_base_es"]
