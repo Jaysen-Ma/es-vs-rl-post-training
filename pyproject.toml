@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "es-capacity"
-version = "0.1.0"
+version = "0.2.0"
 description = "Analysis of reasoning coverage and behavioural changes after ES and GRPO post-training."
 readme = "README.md"
 requires-python = ">=3.10"
