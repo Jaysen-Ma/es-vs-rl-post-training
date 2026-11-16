@@ -60,7 +60,7 @@ def main(argv=None):
         with tarfile.open(sdist) as archive:
             archive.extractall(work / "source", filter="data")
         source, = (work / "source").iterdir()
-        for guide in ("reproduction.md", "model_evaluation.md"):
+        for guide in ("reproduction.md", "model_evaluation.md", "releasing.md"):
             if not (source / "docs" / guide).is_file():
                 raise RuntimeError(f"source distribution is missing docs/{guide}")
 

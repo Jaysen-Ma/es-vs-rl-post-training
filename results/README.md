@@ -1,5 +1,9 @@
 # Evaluation results
 
+**TLDR:** Browse evaluation summaries and plots for all six study models. Raw
+model answers and training logs stay local. Use the linked guides to generate
+and analyse your own results.
+
 This directory contains compact evaluation summaries for the six study
 checkpoints: Qwen2.5-1.5B and Qwen2.5-7B, each with base, ES and GRPO arms.
 `RL` in filenames/tables denotes GRPO. Training curves, trainer logs and

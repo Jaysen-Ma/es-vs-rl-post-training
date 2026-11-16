@@ -1,8 +1,8 @@
 # Making a GitHub release
 
-This is a checklist for the repository maintainer. A release gives users a named,
-tested version to download and install. You do not need to make a release after
-every commit, and users can run the project from a clone without one.
+**TLDR:** For maintainers publishing a new version on GitHub. Choose a version,
+build and check the package, then upload the tested files. You do not need these
+steps to run the project.
 
 The release process publishes downloads on GitHub, with no PyPI publication.
 
@@ -79,19 +79,5 @@ what changed and what has been validated, then attach the three files from
 
 Keep released tags and files unchanged. Corrections get a new version.
 
-## Install a release
-
-Download the three files from the chosen GitHub release into one directory.
-Check the files and install the wheel in a separate environment:
-
-```bash
-sha256sum --check SHA256SUMS
-python3 -m venv .venv
-.venv/bin/python -m pip install './es_capacity-0.2.0-py3-none-any.whl[analysis]'
-.venv/bin/es-capacity-passk --example --out example-output --plot
-```
-
-The `[analysis]` extra installs the plotting and statistics dependencies. The
-example needs no models. These commands target Linux; GPU runtime validation
-remains deferred. For a locked checkout environment, follow
-[the reproduction guide](docs/reproduction.md).
+For user installation instructions, see
+[installing a downloaded package](reproduction.md#install-a-downloaded-package).

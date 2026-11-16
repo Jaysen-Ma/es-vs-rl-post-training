@@ -6,10 +6,10 @@
 <a href="writeup/writeup.pdf"><img src='https://img.shields.io/badge/Write--up-PDF-red' alt='Write-up PDF'></a> <a href="https://huggingface.co/zocrate/Qwen2.5-7B-ES-math"><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-checkpoints-blue' alt='Checkpoints'></a>
 </div>
 
-This repository evaluates six existing Qwen2.5 checkpoints: base, ES and GRPO
-models at 1.5B and 7B. The main evaluations cover mathematical reasoning
-(pass@k), general knowledge (MMLU) and moral judgement (ETHICS). Download the
-checkpoints separately and supply their paths in `config.toml`.
+**TLDR:** Compare six Qwen2.5 models on maths (pass@k), general knowledge (MMLU)
+and moral judgement (ETHICS). Download the models, set their paths in
+`config.toml`, and use the commands below to run evaluations or analyse saved
+results.
 
 ## Overview
 
@@ -88,7 +88,7 @@ uv run --locked --group analysis es-capacity-passk --example --out /tmp/passk-ex
 The setup installs the package from the checkout. This command writes a summary
 and plot from bundled synthetic scores. For a wheel installation, install its
 `[analysis]` extra and run `es-capacity-passk --example --out OUTPUT --plot` in
-that environment; see the [installation instructions](RELEASING.md#install-a-release).
+that environment; see the [installation instructions](docs/reproduction.md#install-a-downloaded-package).
 See the [reproduction guide](docs/reproduction.md) for real input formats, available
 commands and which study results can be regenerated from included files.
 
@@ -127,7 +127,6 @@ uv run --locked --group analysis python -m unittest discover -s tests -v
 CI also checks fresh package installations on Python 3.10 and 3.12. Versioned
 release notes and downloads, when published, are on
 [GitHub Releases](https://github.com/Jaysen-Ma/es-vs-rl-post-training/releases).
-See the [release procedure and installation instructions](RELEASING.md).
 
 ## Acknowledgements
 

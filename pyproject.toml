@@ -51,7 +51,7 @@ include = [
     "/README.md",
     "/docs/reproduction.md",
     "/docs/model_evaluation.md",
-    "/RELEASING.md",
+    "/docs/releasing.md",
     "/LICENSE",
     "/config.example.toml",
     "/external-repositories.toml",

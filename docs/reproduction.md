@@ -1,10 +1,11 @@
 # Reproduction and saved-result analysis
 
-Start here to explore the package without downloading models or running training.
-These workflows consume saved predictions or histogram CSVs. The synthetic
-pass@k example needs neither a GPU nor study data. Obtain the full repository
-for the paper and committed study summaries; the wheel and source archive do
-not include those research artifacts.
+**TLDR:** Use saved model outputs to make tables, statistics and plots. Start
+with a small example that needs no models or GPU. This guide explains which
+study results you can reproduce and which input files you need.
+
+Get the full repository for the paper and committed study summaries; the wheel
+and source archive do not include those research artifacts.
 
 The installed analysis and plotting commands work with both an installed wheel
 and an editable installation from a clone. Commands below use explicit input and
@@ -58,6 +59,23 @@ Other Python versions and platforms have not yet been validated.
 To deliberately update dependencies, use `uv lock --upgrade-package NAME`, repeat
 the relevant validation, and commit the lockfile change with its reason. Routine
 setup should use `--locked`.
+
+## Install a downloaded package
+
+Download the three files from the chosen GitHub release into one directory.
+Check the files and install the wheel in a separate environment:
+
+```bash
+sha256sum --check SHA256SUMS
+python3 -m venv .venv
+.venv/bin/python -m pip install './es_capacity-0.2.0-py3-none-any.whl[analysis]'
+.venv/bin/es-capacity-passk --example --out example-output --plot
+```
+
+The `[analysis]` extra installs the plotting and statistics dependencies. The
+example needs no models. These commands target Linux; GPU runtime validation
+remains deferred. For the locked checkout environment, use
+[the analysis setup above](#analysis-environment).
 
 ## What can be reproduced from a clone
 

@@ -1,9 +1,12 @@
 # Models and evaluation
 
-Use this guide to evaluate checkpoints you download yourself, or to compare their
-weights. No training step is required. Model execution needs a separate GPU
-evaluation environment; checkpoint comparison runs on the CPU with PyTorch and
-SafeTensors. Neither runtime is installed by the saved-result analysis extra.
+**TLDR:** Download the models, list their paths in `config.toml`, then run the
+evaluation commands. This guide explains the setup, required data and where
+results are saved. Model evaluation needs a GPU environment.
+
+Checkpoint weight comparison runs on the CPU with PyTorch and SafeTensors.
+The `analysis` extra does not install model-evaluation or checkpoint-comparison
+libraries.
 
 For existing predictions, use [saved-result analysis](reproduction.md).
 
