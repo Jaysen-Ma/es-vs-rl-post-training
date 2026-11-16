@@ -86,7 +86,7 @@ from pathlib import Path
 import importlib.util
 import sys
 import es_capacity
-from es_capacity.analysis import ethics_cli
+from es_capacity.cli import ethics
 assert Path(es_capacity.__file__).is_relative_to(Path(sys.prefix))
 assert importlib.util.find_spec('scipy') is None
 """, cwd=work)

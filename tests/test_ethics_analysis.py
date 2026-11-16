@@ -11,7 +11,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from es_capacity.analysis import ethics_cli, ethics_commonsense, ethics_rest
+from es_capacity.analysis import ethics_commonsense, ethics_rest
+from es_capacity.cli import ethics as ethics_cli
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -158,7 +159,7 @@ class BlockRuntime(importlib.abc.MetaPathFinder):
 
 sys.meta_path.insert(0, BlockRuntime())
 before = dict(os.environ)
-from es_capacity.analysis import ethics_cli
+from es_capacity.cli import ethics as ethics_cli
 assert dict(os.environ) == before
 ethics_cli.main(['--help'])
 """
