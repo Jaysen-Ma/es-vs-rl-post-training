@@ -130,17 +130,20 @@ Hugging Face Datasets and vLLM. They are not covered by `uv.lock` yet. Setup for
 those workflows must be validated on suitable hardware before it is described
 as reproducible.
 
-Install the shared package into an existing GPU environment with:
+From a clone, install the shared package into an existing GPU environment with:
 
 ```bash
 python -m pip install -e .
 ```
 
+For a downloaded wheel, install its local filename instead of `-e .`. Both
+installation methods provide the same evaluation commands.
+
 The core installation has no third-party dependencies on Python 3.11 or newer;
 Python 3.10 additionally installs `tomli` to read TOML configuration. This command
 adds the shared package without selecting the analysis extra or GPU runtime.
 ETHICS statistical summaries still require SciPy in that environment. Keep using
-its interpreter for installed commands or `python scripts/...`. Users evaluate downloaded
+its interpreter for the installed commands. Users evaluate downloaded
 checkpoints; no training step is required.
 
 ## MMLU model evaluation
@@ -207,9 +210,7 @@ sample logging remain unchanged. The worker defaults `VLLM_USE_FLASHINFER_SAMPLE
 to `0` before runtime imports and retains an existing user value. Importing the
 package or showing help does not change the parent environment.
 
-The legacy `python scripts/mmlu/run.py` command delegates to the installed CLI
-and retains its flags and `results/mmlu_results` default output path. New installed
-commands require `--out`. Help and model preflight work with the core package.
+Evaluation commands require `--out`. Help and model preflight work with the core package.
 CI tests orchestration, simulated runtime calls, output formats and worker cleanup
 without loading model weights. Actual GPU inference and a fresh evaluation
 environment remain unvalidated in this packaging work.
@@ -270,8 +271,7 @@ The parent continues after a failed arm and returns status 1 if any worker fails
 Orchestration and model execution live in `src/es_capacity/evaluation/gpqa.py`,
 with shared command handling in `src/es_capacity/cli/evaluate.py`. Workers launch
 the installed module using the current interpreter, without a checkout path.
-`python scripts/gpqa/run_sweep.py` remains a compatibility launcher, preserving
-the flags and `results/gpqa_results` output default. The core package can show
+The core package can show
 help and check checkpoint paths, while actual evaluation needs the separate
 model runtime. Tests simulate that runtime and check output compatibility with
 the analyzer; actual GPU inference and a fresh GPU environment remain unvalidated.
@@ -321,9 +321,7 @@ accuracy, yes-rate, label-specific accuracies and paired McNemar comparisons.
 It retains other model arms already present in that output directory. Scoring,
 sample formats, result metadata and worker cleanup are preserved.
 
-The legacy `python scripts/ethics/run.py` command delegates to the installed CLI
-and retains its flags and default `results/ethics_results` directory anchored to
-the checkout root. The installed command requires `--out` and `--subset`. Importing
+The command requires `--out` and `--subset`. Importing
 the runner or showing help does not load the runtime or change environment
 variables. Core-package checks exercise task preparation from the installed wheel;
 worker tests simulate model scoring and pass the outputs through the analysis
@@ -346,9 +344,7 @@ Preparation writes `rest_data/` JSONLs and `rest_tasks/` YAMLs with quoted absol
 data paths. Contrast groups, reply choices and the two orderings of each utility
 pair are preserved. Each worker writes `ARM/rest_samples.jsonl` and
 `ARM/rest_results.json`; `rest_summary.csv` is refreshed after successful workers.
-Commonsense files remain separate. The legacy `scripts/ethics/run_rest.py`
-launcher retains its flags and checkout-relative output default. Scoring is
-always zero-shot for these four subsets; `--csv` is for commonsense only.
+Commonsense files remain separate. Scoring is always zero-shot for these four subsets; `--csv` is for commonsense only.
 
 ## Checkpoint comparison
 
@@ -363,8 +359,7 @@ es-capacity-weights --scale 7B --results-dir /data/weight-comparisons --out /dat
 Install this package into an environment with PyTorch and SafeTensors. These
 libraries are outside the locked analysis environment; command help and model
 preflight do not import them. Model paths use the shared TOML configuration.
-The installed command requires `--out`; the legacy `scripts/weights/compare.py`
-launcher retains its `results/weights` default.
+The command requires an explicit `--out` directory.
 
 The algorithm in `src/es_capacity/analysis/weight_comparison.py` streams the same
 tensor chunks in two passes, retaining raw units, shared base/trained histogram

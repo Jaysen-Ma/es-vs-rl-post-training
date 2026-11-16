@@ -73,6 +73,10 @@ The study's evaluation summaries and plots are in [results/](results/README.md),
 organised by benchmark and model size. The repository takes existing checkpoints
 as inputs; no ES or GRPO training setup is required.
 
+Cloning the repository and installing a wheel provide the same `es-capacity-*`
+commands for model evaluation, saved-result analysis and plotting. A clone also
+includes the paper, committed study results and repository utilities.
+
 To try saved-result analysis without models or benchmark downloads, install
 [uv](https://docs.astral.sh/uv/getting-started/installation/) and run from a clone:
 
@@ -81,8 +85,11 @@ uv sync --locked --group analysis
 uv run --locked --group analysis es-capacity-passk --example --out /tmp/passk-example --plot
 ```
 
-This writes a summary and plot from bundled synthetic scores. See the
-[reproduction guide](docs/reproduction.md) for real input formats, available
+The setup installs the package from the checkout. This command writes a summary
+and plot from bundled synthetic scores. For a wheel installation, install its
+`[analysis]` extra and run `es-capacity-passk --example --out OUTPUT --plot` in
+that environment; see the [installation instructions](RELEASING.md#install-a-release).
+See the [reproduction guide](docs/reproduction.md) for real input formats, available
 commands and which study results can be regenerated from included files.
 
 ### Evaluate downloaded models
@@ -103,11 +110,15 @@ es-capacity-evaluate mmlu --config config.toml --arms 7B-base 7B-ES 7B-RL --out 
 
 The [model-evaluation guide](docs/model_evaluation.md) covers MMLU, GPQA, all five
 ETHICS subsets, the external maths harness and CPU checkpoint comparison. It
-states the runtime requirements and validation limits. The old script commands
-remain available as compatibility launchers.
+states the runtime requirements and validation limits. Model execution requires
+the separate model runtime described there, whichever installation method you use.
+Maths generation currently uses the external evaluator through the repository
+wrapper; its saved-output analysis and plotting use the installed commands.
 
-Reusable code lives in `src/es_capacity/`, tests in `tests/`, and script launchers
-in `scripts/`. Run the tests with:
+Reusable code lives in `src/es_capacity/` and tests in `tests/`. `scripts/` holds
+three utilities: package validation (`check_package.py`), the combined paper
+figure (`plot_hero.py`) and the external maths evaluator wrapper
+(`passk/run_eval.sh`). Run the tests with:
 
 ```bash
 uv run --locked --group analysis python -m unittest discover -s tests -v

@@ -15,7 +15,6 @@ from es_capacity.analysis import ethics_commonsense, ethics_rest
 from es_capacity.cli import ethics as ethics_cli
 
 
-ROOT = Path(__file__).resolve().parents[1]
 HAS_SCIPY = importlib.util.find_spec("scipy") is not None
 
 
@@ -138,13 +137,11 @@ class EthicsAnalysisTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, 2)
         self.assertIn("uv sync --locked --group analysis", error.getvalue())
 
-    def test_runners_delegate_to_packaged_summaries(self):
-        for script, module in (("run.py", ethics_commonsense), ("run_rest.py", ethics_rest)):
-            with self.subTest(script=script):
-                spec = importlib.util.spec_from_file_location(script, ROOT / "scripts/ethics" / script)
-                runner = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(runner)
-                self.assertIs(runner.summarize, module.summarize)
+    def test_evaluation_workers_share_the_analysis_summaries(self):
+        from es_capacity.evaluation import ethics_commonsense as commonsense_runner
+        from es_capacity.evaluation import ethics_rest as rest_runner
+        self.assertIs(commonsense_runner.summarize, ethics_commonsense.summarize)
+        self.assertIs(rest_runner.summarize, ethics_rest.summarize)
 
     def test_analysis_import_does_not_load_or_configure_model_runtime(self):
         code = """

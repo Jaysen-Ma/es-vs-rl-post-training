@@ -3,7 +3,6 @@
 import contextlib
 import csv
 import glob
-import importlib.util
 import io
 import json
 import os
@@ -20,7 +19,6 @@ from es_capacity.evaluation import ethics_commonsense as ethics
 from es_capacity.models import MODELS
 
 
-ROOT = Path(__file__).resolve().parents[1]
 
 
 class EthicsEvaluationTests(unittest.TestCase):
@@ -246,16 +244,6 @@ assert dict(os.environ) == before
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--subset", result.stdout)
 
-    def test_legacy_launcher_keeps_checkout_relative_default_and_summary_function(self):
-        spec = importlib.util.spec_from_file_location("ethics_runner", ROOT / "scripts/ethics/run.py")
-        launcher = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(launcher)
-        self.assertIs(launcher.run_one_arm, ethics.run_one_arm)
-        self.assertIs(launcher.summarize, ethics.summarize)
-        with patch.object(launcher, "evaluate") as evaluate:
-            launcher.main(["--arms", "7B-base"])
-            evaluate.assert_called_once_with(["ethics", "--subset", "commonsense", "--arms", "7B-base"],
-                                             default_ethics_output=ROOT / "results/ethics_results")
 
 
 if __name__ == "__main__":

@@ -168,7 +168,7 @@ for name in ('torch', 'vllm', 'lm_eval', 'datasets', 'transformers'):
         run(mmlu_cli, "--results-dir", mmlu_inputs, "--out", mmlu_out, cwd=work)
         if not (mmlu_out / "scores.csv").is_file():
             raise RuntimeError("installed MMLU command did not produce scores.csv")
-        # Run the shipped tests and runner scripts against the installed wheel.
+        # Run the shipped tests against the installed wheel.
         # -I and an external cwd prevent imports from the development checkout.
         tests = source / "tests"
         if not list(tests.glob("test_*.py")):

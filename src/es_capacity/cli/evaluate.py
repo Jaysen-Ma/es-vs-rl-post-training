@@ -9,11 +9,10 @@ from es_capacity.config import ethics_data_dir
 from es_capacity.models import MODELS, ModelConfigurationError
 
 
-def _add_model_arguments(command, default_output, *, gpu_memory, max_model_len, default_arms=None):
+def _add_model_arguments(command, *, gpu_memory, max_model_len, default_arms=None):
     command.add_argument("--arms", nargs="+", choices=list(MODELS),
                          default=list(MODELS) if default_arms is None else list(default_arms))
-    command.add_argument("--out", type=Path, default=default_output,
-                         required=default_output is None, help="output root for evaluation files")
+    command.add_argument("--out", type=Path, required=True, help="output root for evaluation files")
     command.add_argument("--dtype", default="bfloat16")
     command.add_argument("--gpu-memory-utilization", type=float, default=gpu_memory)
     command.add_argument("--max-model-len", type=int, default=max_model_len)
@@ -21,7 +20,7 @@ def _add_model_arguments(command, default_output, *, gpu_memory, max_model_len, 
     add_config_argument(command)
 
 
-def main(argv=None, *, default_mmlu_output=None, default_gpqa_output=None, default_ethics_output=None):
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     command = commands.add_parser(
@@ -29,7 +28,7 @@ def main(argv=None, *, default_mmlu_output=None, default_gpqa_output=None, defau
         description="Evaluate downloaded models on MMLU in an existing GPU "
         "evaluation environment. Use es-capacity-mmlu to analyse saved outputs.",
     )
-    _add_model_arguments(command, default_mmlu_output, gpu_memory=0.25, max_model_len=1280)
+    _add_model_arguments(command, gpu_memory=0.25, max_model_len=1280)
     command.add_argument("--num-fewshot", type=int, default=0)
     command.add_argument("--seed", type=int, default=0)
     command.add_argument("--max-num-batched-tokens", type=int, default=2048)
@@ -42,7 +41,7 @@ def main(argv=None, *, default_mmlu_output=None, default_gpqa_output=None, defau
         description="Evaluate GPQA-diamond with one model per worker and multiple "
         "answer-order seeds. Use es-capacity-gpqa to analyse saved outputs.",
     )
-    _add_model_arguments(command, default_gpqa_output, gpu_memory=0.5, max_model_len=4096)
+    _add_model_arguments(command, gpu_memory=0.5, max_model_len=4096)
     command.add_argument("--seeds", nargs="+", type=int, default=list(range(10)),
                          help="distinct nonnegative answer-order seeds; default: 0 through 9")
     command.add_argument("--batch-size", default="auto")
@@ -53,7 +52,7 @@ def main(argv=None, *, default_mmlu_output=None, default_gpqa_output=None, defau
         description="Evaluate moral scenarios using local task data. "
         "Use es-capacity-ethics to analyse saved predictions.",
     )
-    _add_model_arguments(command, default_ethics_output, gpu_memory=0.25, max_model_len=2048,
+    _add_model_arguments(command, gpu_memory=0.25, max_model_len=2048,
                          default_arms=ethics_commonsense.DEFAULT_ARMS)
     command.set_defaults(arms=None)
     command.add_argument("--subset", choices=("commonsense", "rest"), required=True)

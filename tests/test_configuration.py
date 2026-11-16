@@ -1,7 +1,6 @@
 """Configuration contracts, independent of GPU and model dependencies."""
 
 import contextlib
-import importlib.util
 import io
 import json
 import os
@@ -15,18 +14,21 @@ from unittest.mock import patch
 
 from es_capacity.config import ethics_data_dir, math_eval_dir, models_dir
 from es_capacity.cli.evaluate import main as evaluate_main
+from es_capacity.cli.compare_weights import main as compare_weights_main
+from es_capacity.analysis import weight_comparison
+from es_capacity.evaluation import ethics_commonsense, ethics_rest, gpqa, mmlu
 from es_capacity.cli.models import main as models_main
 from es_capacity.models import MODELS, ModelConfigurationError, local_checkpoint_dir, resolve_model
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
-def load_runner(relative):
-    spec = importlib.util.spec_from_file_location(relative, ROOT / relative)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+EVALUATORS = (
+    (["mmlu"], mmlu),
+    (["gpqa"], gpqa),
+    (["ethics", "--subset", "commonsense"], ethics_commonsense),
+    (["ethics", "--subset", "rest"], ethics_rest),
+)
 
 
 def checkpoint(path):
@@ -236,82 +238,58 @@ class RunnerConfigurationTests(unittest.TestCase):
         environment.start()
         self.addCleanup(environment.stop)
 
-    def test_evaluation_runners_use_shared_resolution_without_path_hacks(self):
-        old_path = sys.path.copy()
-        for name in (
-            "scripts/mmlu/run.py",
-            "scripts/gpqa/run_sweep.py",
-            "scripts/ethics/run.py",
-            "scripts/ethics/run_rest.py",
-        ):
-            with self.subTest(runner=name):
-                runner = load_runner(name)
+    def test_evaluation_workers_use_the_shared_model_resolver(self):
+        for command, runner in EVALUATORS:
+            with self.subTest(command=command):
                 self.assertIs(runner.resolve, resolve_model)
-                self.assertEqual(sys.path, old_path)
 
     def test_ethics_data_directory_reaches_worker_command(self):
-        runner = load_runner("scripts/ethics/run_rest.py")
-        implementation = sys.modules[runner.run_one_arm.__module__]
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            cli_data = root / "explicit data"
-            cli_data.mkdir()
-            env_data = root / "environment data"
-            env_data.mkdir()
-            out = root / "output"
-            for override in ([], ["--data-dir", str(cli_data)]):
-                expected = env_data if not override else cli_data
-                with self.subTest(override=override):
-                    argv = [
-                        "run_rest.py", "--arms", "7B-base", "--out", str(out), *override
-                    ]
-                    with (
-                        patch.dict(os.environ, {"ETHICS_DATA_DIR": str(env_data)}),
-                        patch.object(sys, "argv", argv),
-                        patch.object(implementation, "prepare", return_value=out) as prepare,
-                        patch.object(implementation, "summarize"),
-                        patch.object(
-                            runner.subprocess, "run", return_value=SimpleNamespace(returncode=0)
-                        ) as run,
-                        contextlib.redirect_stdout(io.StringIO()),
-                    ):
-                        runner.main()
-                    prepare.assert_called_once_with(out, expected)
-                    command = run.call_args.args[0]
-                    self.assertEqual(command[command.index("--data-dir") + 1], str(expected))
+        cli_data = self.root / "explicit data"
+        cli_data.mkdir()
+        env_data = self.root / "environment data"
+        env_data.mkdir()
+        out = self.root / "output"
+        for override in ([], ["--data-dir", str(cli_data)]):
+            expected = env_data if not override else cli_data
+            with self.subTest(override=override):
+                with (
+                    patch.dict(os.environ, {"ETHICS_DATA_DIR": str(env_data)}),
+                    patch.object(ethics_rest, "prepare", return_value=out) as prepare,
+                    patch.object(ethics_rest, "summarize"),
+                    patch.object(ethics_rest.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run,
+                    contextlib.redirect_stdout(io.StringIO()),
+                ):
+                    evaluate_main(["ethics", "--subset", "rest", "--arms", "7B-base", "--out", str(out), *override])
+                prepare.assert_called_once_with(out, expected)
+                command = run.call_args.args[0]
+                self.assertEqual(command[command.index("--data-dir") + 1], str(expected))
 
     def test_explicit_model_config_reaches_all_worker_commands(self):
-        for name in ("scripts/mmlu/run.py", "scripts/gpqa/run_sweep.py", "scripts/ethics/run.py", "scripts/ethics/run_rest.py"):
-            with self.subTest(runner=name):
-                runner = load_runner(name)
-                implementation = sys.modules.get(runner.run_one_arm.__module__, runner)
-                argv = [name, "--arms", "7B-base", "--config", str(self.config), "--out", str(self.root / "out")]
-                if name.endswith("run_rest.py"):
+        for command, runner in EVALUATORS:
+            with self.subTest(command=command):
+                argv = [*command, "--arms", "7B-base", "--config", str(self.config), "--out", str(self.root / "out")]
+                if runner is ethics_rest:
                     argv += ["--data-dir", str(self.root)]
                 with contextlib.ExitStack() as stack:
-                    stack.enter_context(patch.object(sys, "argv", argv))
                     stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
                     run = stack.enter_context(patch.object(runner.subprocess, "run", return_value=SimpleNamespace(returncode=0)))
                     for helper in ("ensure_test_jsonl", "write_task_yaml", "prepare", "summarize"):
-                        if hasattr(implementation, helper):
-                            stack.enter_context(patch.object(implementation, helper, return_value=self.root))
-                    runner.main()
-                command = run.call_args.args[0]
-                self.assertEqual(command[command.index("--config") + 1], str(self.config))
+                        if hasattr(runner, helper):
+                            stack.enter_context(patch.object(runner, helper, return_value=self.root))
+                    evaluate_main(argv)
+                worker = run.call_args.args[0]
+                self.assertEqual(worker[worker.index("--config") + 1], str(self.config))
 
     def test_invalid_model_fails_before_dataset_setup_or_workers(self):
         config = model_config(self.root / "missing.toml", {"7B-base": "not downloaded"})
-        for name in ("scripts/mmlu/run.py", "scripts/gpqa/run_sweep.py", "scripts/ethics/run.py", "scripts/ethics/run_rest.py"):
-            with self.subTest(runner=name):
-                runner = load_runner(name)
-                implementation = sys.modules.get(runner.run_one_arm.__module__, runner)
+        for command, runner in EVALUATORS:
+            with self.subTest(command=command):
                 with contextlib.ExitStack() as stack:
-                    stack.enter_context(patch.object(sys, "argv", [name, "--arms", "7B-base", "--config", str(config)]))
                     stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
                     run = stack.enter_context(patch.object(runner.subprocess, "run"))
-                    helpers = [stack.enter_context(patch.object(implementation, helper)) for helper in ("ensure_test_jsonl", "prepare") if hasattr(implementation, helper)]
+                    helpers = [stack.enter_context(patch.object(runner, helper)) for helper in ("ensure_test_jsonl", "prepare") if hasattr(runner, helper)]
                     with self.assertRaises(SystemExit) as raised:
-                        runner.main()
+                        evaluate_main([*command, "--arms", "7B-base", "--config", str(config), "--out", str(self.root / "out")])
                 self.assertEqual(raised.exception.code, 2)
                 run.assert_not_called()
                 for helper in helpers:
@@ -418,56 +396,38 @@ class RunnerConfigurationTests(unittest.TestCase):
                 self.assertFalse((self.root / "unused output").exists())
 
     def test_weight_comparison_uses_the_same_configured_paths(self):
-        # Only exercise CLI wiring; no tensor operations or checkpoint reads.
-        runner = load_runner("scripts/weights/compare.py")
         paths = {arm: checkpoint(self.root / f"arbitrary {arm}") for arm in ("7B-base", "7B-ES", "7B-RL")}
         config = model_config(self.root / "weight-models.toml", paths)
-        with (
-            patch.object(sys, "argv", ["compare.py", "--scale", "7B", "--config", str(config)]),
-            patch.object(sys.modules[runner.compare.__module__], "compare") as compare,
-            contextlib.redirect_stdout(io.StringIO()),
-        ):
-            runner.main()
+        with patch.object(weight_comparison, "compare") as compare, contextlib.redirect_stdout(io.StringIO()):
+            compare_weights_main(["--scale", "7B", "--config", str(config), "--out", str(self.root / "weights")])
         self.assertEqual(compare.call_count, 2)
         self.assertEqual([call.args[:2] for call in compare.call_args_list], [
             (paths["7B-base"], paths["7B-ES"]), (paths["7B-base"], paths["7B-RL"]),
         ])
 
     def test_ethics_worker_uses_selected_directory(self):
-        runner = load_runner("scripts/ethics/run_rest.py")
-        implementation = sys.modules[runner.run_one_arm.__module__]
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            out = root / "output"
-            argv = [
-                "run_rest.py", "--_arm", "7B-base", "--data-dir", str(root),
-                "--out", str(out),
-            ]
-            with (
-                patch.object(sys, "argv", argv),
-                patch.object(implementation, "prepare", return_value=out) as prepare,
-                patch.object(implementation, "run_one_arm") as evaluate,
-            ):
-                runner.main()
-            prepare.assert_called_once_with(out, root)
-            self.assertEqual(evaluate.call_args.args[:3], ("7B-base", out, out))
+        out = self.root / "output"
+        with (
+            patch.object(ethics_rest, "prepare", return_value=out) as prepare,
+            patch.object(ethics_rest, "run_one_arm") as evaluate,
+        ):
+            evaluate_main(["ethics", "--subset", "rest", "--_arm", "7B-base", "--data-dir", str(self.root), "--out", str(out)])
+        prepare.assert_called_once_with(out, self.root)
+        self.assertEqual(evaluate.call_args.args[:3], ("7B-base", out, out))
 
     def test_missing_ethics_directory_fails_before_worker_start(self):
-        runner = load_runner("scripts/ethics/run_rest.py")
-        with tempfile.TemporaryDirectory() as tmp:
-            missing = str(Path(tmp) / "missing")
-            with (
-                patch.object(sys, "argv", ["run_rest.py", "--data-dir", missing]),
-                patch.object(sys.modules[runner.run_one_arm.__module__], "prepare") as prepare,
-                patch.object(runner.subprocess, "run") as run,
-                contextlib.redirect_stderr(io.StringIO()) as error,
-            ):
-                with self.assertRaises(SystemExit) as raised:
-                    runner.main()
-            self.assertEqual(raised.exception.code, 2)
-            self.assertIn("paths.ethics_data_dir", error.getvalue())
-            prepare.assert_not_called()
-            run.assert_not_called()
+        missing = str(self.root / "missing")
+        with (
+            patch.object(ethics_rest, "prepare") as prepare,
+            patch.object(ethics_rest.subprocess, "run") as run,
+            contextlib.redirect_stderr(io.StringIO()) as error,
+        ):
+            with self.assertRaises(SystemExit) as raised:
+                evaluate_main(["ethics", "--subset", "rest", "--arms", "7B-base", "--data-dir", missing, "--out", str(self.root / "out")])
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("paths.ethics_data_dir", error.getvalue())
+        prepare.assert_not_called()
+        run.assert_not_called()
 
 
 if __name__ == "__main__":

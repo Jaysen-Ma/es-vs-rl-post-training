@@ -3,7 +3,6 @@
 import contextlib
 import copy
 import glob
-import importlib.util
 import io
 import json
 import os
@@ -20,7 +19,6 @@ from es_capacity.cli.evaluate import main
 from es_capacity.evaluation import mmlu
 
 
-ROOT = Path(__file__).resolve().parents[1]
 
 
 class MmluEvaluationTests(unittest.TestCase):
@@ -205,15 +203,6 @@ assert dict(os.environ) == before
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--batch-size", result.stdout)
 
-    def test_legacy_launcher_delegates_with_existing_output_default(self):
-        spec = importlib.util.spec_from_file_location("mmlu_runner", ROOT / "scripts/mmlu/run.py")
-        launcher = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(launcher)
-        self.assertIs(launcher.run_one_arm, mmlu.run_one_arm)
-        with patch.object(launcher, "evaluate") as evaluate:
-            launcher.main(["--arms", "7B-base"])
-            evaluate.assert_called_once_with(["mmlu", "--arms", "7B-base"],
-                                             default_mmlu_output=Path("results/mmlu_results"))
 
     def test_missing_output_or_empty_arm_selection_is_rejected(self):
         for argv in (["mmlu", "--config", str(self.config)], self.args("--arms")):

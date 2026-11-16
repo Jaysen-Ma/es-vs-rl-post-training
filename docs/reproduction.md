@@ -6,7 +6,11 @@ pass@k example needs neither a GPU nor study data. Obtain the full repository
 for the paper and committed study summaries; the wheel and source archive do
 not include those research artifacts.
 
-For checkpoints and model execution, use [Models and evaluation](model_evaluation.md).
+The installed analysis and plotting commands work with both an installed wheel
+and an editable installation from a clone. Commands below use explicit input and
+output paths. The paper figure utility additionally needs the committed summaries
+from a clone. For checkpoints and model execution, use
+[Models and evaluation](model_evaluation.md).
 
 ## Analysis environment
 
@@ -36,7 +40,7 @@ before running the command names directly. For a wheel installation, use the
 executables from the environment where you installed it.
 
 `uv sync` installs `es_capacity` in editable mode, so changes under
-`src/es_capacity/` are available to the existing script commands.
+`src/es_capacity/` are available to the installed commands.
 
 `pyproject.toml` declares the dependencies; `uv.lock` records exact resolved
 versions and artifact hashes, including transitive dependencies. `--locked`
@@ -160,11 +164,6 @@ against an independent exact-combination reference, including all-correct,
 all-incorrect, non-power-of-two and larger sample budgets. CI requires no external
 checkout to run these tests.
 
-The old `python scripts/passk/analyze.py --run-tag RUN --label ...` interface is a
-compatibility launcher. It still reads `results/RUN/` relative to the checkout and
-defaults to writing summaries there. It delegates to the same packaged functions;
-new code should use the installed command with explicit paths.
-
 ## MMLU analysis
 
 `es-capacity-mmlu` consumes saved outputs from the MMLU model runner; it does not
@@ -203,11 +202,8 @@ Bonferroni correction covers the trained/base comparisons available in that run.
 Overall accuracies, statistical calculations, rounding and table format are
 unchanged. Use the CSV metadata when interpreting runs with other shot counts.
 
-The legacy `python scripts/mmlu/tables.py --sweep-root PATH` launcher delegates
-to the packaged command and still writes `PATH/scores.csv`. Without that argument
-it uses `results/mmlu_results` relative to the current directory. New commands
-should use the installed entry point with explicit input/output paths. Saved MMLU
-inputs are excluded from Git; CI exercises synthetic results and samples.
+Saved MMLU per-question inputs are excluded from Git; CI exercises synthetic
+results and samples. The study's aggregate scores are in `results/mmlu/scores.csv`.
 
 ## GPQA analysis
 
@@ -261,11 +257,7 @@ no raw samples. It supports summaries without pair files and includes additional
 arm names after the study's six arms. Raw benchmark text and saved runs are
 excluded from Git; the tests use synthetic scores, hashes and likelihoods.
 
-The old `scripts/gpqa/analyze.py --sweep-root PATH --out OUTPUT --pair ARM:BASELINE`
-and `--check` forms delegate to the installed command. The old
-`scripts/gpqa/tables.py --dir PATH` launcher remains available, with its existing
-`results/gpqa` default. New commands should use the installed entry point with
-explicit paths. None of these commands requires model configuration.
+These commands need explicit paths and do not require model configuration.
 
 ## Weight-distribution figures
 
@@ -319,7 +311,5 @@ unchanged. Input CSVs remain untouched. Figure pixels can vary across plotting
 environments; use the locked environment for comparisons. The full saved CSVs are
 excluded from Git, while tests render synthetic distributions.
 
-The old `python scripts/weights/plot.py --scale 7B --dir PATH` launcher still
-writes to `PATH/figures`; its default input root remains `results/weights`.
 To generate new CSVs from checkpoints, follow
 [checkpoint comparison](model_evaluation.md#checkpoint-comparison).

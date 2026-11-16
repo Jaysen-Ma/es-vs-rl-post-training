@@ -91,4 +91,4 @@ done
 
 echo
 echo "All benchmarks complete for $LABEL. Outputs in ${LABEL_OUT}/{aime24,math500,minerva_math,olympiadbench}/"
-echo "Analyze with: python ${SCRIPT_DIR}/analyze.py --run-tag ${RUN_TAG} --label ... --baseline ... --plot"
+echo "Analyze with: es-capacity-passk --results-dir \"${OUT_ROOT}\" --out /path/to/summaries --label ... --baseline ... --plot"

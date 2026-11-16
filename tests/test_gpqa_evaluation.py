@@ -1,7 +1,6 @@
 """GPQA worker reuse, seed forwarding and output contracts without model execution."""
 
 import contextlib
-import importlib.util
 import io
 import json
 import os
@@ -18,7 +17,6 @@ from es_capacity.cli.evaluate import main
 from es_capacity.evaluation import gpqa
 
 
-ROOT = Path(__file__).resolve().parents[1]
 
 
 class GpqaEvaluationTests(unittest.TestCase):
@@ -225,15 +223,6 @@ assert dict(os.environ) == before
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--seeds", result.stdout)
 
-    def test_legacy_launcher_delegates_with_existing_output_default(self):
-        spec = importlib.util.spec_from_file_location("gpqa_runner", ROOT / "scripts/gpqa/run_sweep.py")
-        launcher = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(launcher)
-        self.assertIs(launcher.run_one_arm, gpqa.run_one_arm)
-        with patch.object(launcher, "evaluate") as evaluate:
-            launcher.main(["--arms", "7B-base", "--seeds", "0", "1"])
-            evaluate.assert_called_once_with(["gpqa", "--arms", "7B-base", "--seeds", "0", "1"],
-                                             default_gpqa_output=Path("results/gpqa_results"))
 
 
 if __name__ == "__main__":

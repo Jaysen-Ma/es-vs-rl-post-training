@@ -8,11 +8,11 @@ from es_capacity.cli.models import add_config_argument
 from es_capacity.models import ModelConfigurationError, resolve_model
 
 
-def main(argv=None, *, default_output=None):
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scale", choices=sorted(weight_comparison.SCALES), required=True)
     parser.add_argument("--arms", nargs="+", choices=("ES", "RL"), default=["ES", "RL"])
-    parser.add_argument("--out", type=Path, default=default_output, required=default_output is None,
+    parser.add_argument("--out", type=Path, required=True,
                         help="output root for SCALE-ARM CSV directories; existing CSVs are replaced")
     add_config_argument(parser)
     args = parser.parse_args(argv)

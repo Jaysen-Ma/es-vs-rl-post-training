@@ -1,8 +1,7 @@
-"""Saved-histogram calculations, figure output and CLI compatibility."""
+"""Saved-histogram calculations, figure output and CLI behaviour."""
 
 import contextlib
 import csv
-import importlib.util
 import io
 from pathlib import Path
 import subprocess
@@ -17,7 +16,6 @@ from es_capacity.analysis import weights
 from es_capacity.cli.weights import main
 
 
-ROOT = Path(__file__).resolve().parents[1]
 FIGURES = ("raw_weights", "delta_pooled", "weight_change", "delta_by_module", "delta_by_depth")
 
 
@@ -156,16 +154,6 @@ class WeightAnalysisTests(unittest.TestCase):
             self.assertIn("uv sync --locked --group analysis", error.getvalue())
         self.assertFalse(self.out.exists())
 
-    def test_legacy_launcher_preserves_default_and_explicit_locations(self):
-        spec = importlib.util.spec_from_file_location("weight_plot", ROOT / "scripts/weights/plot.py")
-        launcher = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(launcher)
-        self.assertIs(launcher.read_hist, weights.read_hist)
-        for extra, directory in (([], Path("results/weights")), (["--dir", str(self.inputs)], self.inputs)):
-            with patch.object(launcher, "plot") as plot:
-                launcher.main(["--scale", "7B", *extra])
-                plot.assert_called_once_with(["--scale", "7B", "--results-dir", str(directory),
-                                              "--out", str(directory / "figures")])
 
     def test_help_loads_no_plotting_or_model_libraries_and_does_not_change_environment(self):
         code = """

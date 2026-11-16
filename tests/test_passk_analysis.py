@@ -1,7 +1,6 @@
 """Numerical references and CLI contracts for saved-score pass@k analysis."""
 
 import contextlib
-import importlib.util
 import io
 import json
 import math
@@ -14,7 +13,6 @@ from es_capacity.analysis import passk
 from es_capacity.cli.passk import main
 
 
-ROOT = Path(__file__).resolve().parents[1]
 
 
 class PassAtKReferenceTests(unittest.TestCase):
@@ -144,20 +142,6 @@ class PassAtKCliTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, 2)
         self.assertIn("uv sync --locked --group analysis", error.getvalue())
 
-    def test_legacy_launcher_delegates_and_retains_run_tag_output_location(self):
-        self.write_inputs()
-        spec = importlib.util.spec_from_file_location("legacy_passk", ROOT / "scripts/passk/analyze.py")
-        legacy = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(legacy)
-        self.assertIs(legacy.pass_at_k_curve, passk.pass_at_k_curve)
-        self.assertIs(legacy.analyze_benchmark, passk.analyze_benchmark)
-        # Arrange the old results/RUN layout while leaving the repository untouched.
-        results = self.root / "results"
-        results.mkdir()
-        self.inputs.rename(results / "my-run")
-        with patch.object(legacy, "REPO_ROOT", str(self.root)), contextlib.redirect_stdout(io.StringIO()):
-            legacy.main(["--run-tag", "my-run", "--label", "base", "--label", "trained"])
-        self.assertTrue((results / "my-run/math500_summary.json").is_file())
 
 
 if __name__ == "__main__":
