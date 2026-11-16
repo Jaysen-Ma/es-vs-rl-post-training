@@ -7,7 +7,6 @@ for the paper and committed study summaries; the wheel and source archive do
 not include those research artifacts.
 
 For checkpoints and model execution, use [Models and evaluation](model_evaluation.md).
-For code changes and CI, use the [contributor guide](development.md).
 
 ## Analysis environment
 

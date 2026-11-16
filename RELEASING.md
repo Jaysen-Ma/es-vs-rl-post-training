@@ -1,15 +1,17 @@
 # GitHub releases
 
-The first release is `v0.1.0`, matching `project.version = "0.1.0"` in
-`pyproject.toml`. Releases provide a wheel, source archive and `SHA256SUMS` on
-GitHub. There is no PyPI publication step.
+Choose a new version matching `project.version` in `pyproject.toml`.
+The examples below use `0.2.0`; substitute the version you are preparing.
+Releases provide a wheel, source archive and `SHA256SUMS` on GitHub.
+There is no PyPI publication step.
 
 ## Prepare the release in a pull request
 
-Update the version in `pyproject.toml`, refresh `uv.lock`, update installation
-examples containing the version and add release notes to `CHANGELOG.md`. The first
-release already uses `0.1.0`. Subsequent bug fixes increment the patch version;
-new functionality increments the minor version. Before 1.0, document any breaking
+Update the version in `pyproject.toml`, refresh `uv.lock`, and update installation
+examples containing the version. Write release notes in the GitHub draft release
+description, summarising changes, compatibility and validation limits.
+Bug fixes increment the patch version; new functionality increments the minor
+version. Before 1.0, document any breaking
 changes explicitly and increment the minor version for them.
 
 Review the release notes, package contents and supported environments. Require
@@ -38,11 +40,11 @@ checks pass does it copy those exact artifacts into `dist/` and write SHA-256
 checksums. An existing output directory is rejected to avoid mixing candidates.
 Do not run another build between validation and upload.
 
-For `0.1.0`, the directory must contain exactly:
+For `0.2.0`, the directory must contain exactly:
 
 ```text
-es_capacity-0.1.0-py3-none-any.whl
-es_capacity-0.1.0.tar.gz
+es_capacity-0.2.0-py3-none-any.whl
+es_capacity-0.2.0.tar.gz
 SHA256SUMS
 ```
 
@@ -58,14 +60,12 @@ After confirming the merged commit and successful checks, create an annotated
 tag at the checked-out commit and push only that tag:
 
 ```bash
-git tag -a v0.1.0 -m "Release v0.1.0"
-git push origin refs/tags/v0.1.0
-gh release create v0.1.0 --verify-tag --draft --title "v0.1.0" --notes-file CHANGELOG.md dist/es_capacity-0.1.0-py3-none-any.whl dist/es_capacity-0.1.0.tar.gz dist/SHA256SUMS
+git tag -a v0.2.0 -m "Release v0.2.0"
+git push origin refs/tags/v0.2.0
+gh release create v0.2.0 --verify-tag --draft --title "v0.2.0" --notes "Describe this version's changes and validation limits." dist/es_capacity-0.2.0-py3-none-any.whl dist/es_capacity-0.2.0.tar.gz dist/SHA256SUMS
 ```
 
-For later releases, supply only the new version's notes in `--notes-file` rather
-than uploading the entire cumulative changelog. The
-[GitHub CLI release command](https://cli.github.com/manual/gh_release_create)
+The [GitHub CLI release command](https://cli.github.com/manual/gh_release_create)
 supports draft creation and requires the existing tag with `--verify-tag`.
 
 Review the draft's tag, notes and three assets on GitHub. Download the assets
@@ -82,11 +82,11 @@ verify them before installing the wheel into a separate virtual environment:
 ```bash
 sha256sum --check SHA256SUMS
 python3 -m venv .venv
-.venv/bin/python -m pip install './es_capacity-0.1.0-py3-none-any.whl[analysis]'
+.venv/bin/python -m pip install './es_capacity-0.2.0-py3-none-any.whl[analysis]'
 .venv/bin/es-capacity-passk --example --out example-output --plot
 ```
 
 These commands target Linux, the validated platform. Users who need the locked
 environment or checkout-specific scripts can extract the source archive and
-follow `DEVELOPMENT.md`. Model execution still requires a separate GPU
+follow `docs/reproduction.md`. Model execution still requires a separate GPU
 environment, which has not been validated for this release.

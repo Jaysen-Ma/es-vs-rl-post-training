@@ -1,15 +1,15 @@
-"""Inspect user-downloaded model checkpoints without loading model libraries."""
+"""Inspect local checkpoints and shared paths without loading model libraries."""
 
 import argparse
 from pathlib import Path
 
-from es_capacity.config import model_config_path
+from es_capacity.config import ethics_data_dir, math_eval_dir, model_config_path
 from es_capacity.models import MODELS, ModelConfigurationError, resolve_model
 
 
 def add_config_argument(parser):
     parser.add_argument(
-        "--config", type=Path, help="model paths TOML file (or set ES_CAPACITY_CONFIG)",
+        "--config", type=Path, help="shared TOML configuration (or set ES_CAPACITY_CONFIG)",
     )
 
 
@@ -33,7 +33,20 @@ def main(argv=None):
     path = commands.add_parser("path", help="print one validated checkpoint path")
     add_config_argument(path)
     path.add_argument("arm", help="model arm or existing local checkpoint directory")
+    setting = commands.add_parser("setting", help="print a dataset or maths-harness directory")
+    add_config_argument(setting)
+    setting.add_argument("name", choices=("math_eval_dir", "ethics_data_dir"))
     args = parser.parse_args(argv)
+
+    if args.command == "setting":
+        try:
+            local = math_eval_dir(args.config) if args.name == "math_eval_dir" else ethics_data_dir(args.config)
+            if not local.is_dir():
+                raise FileNotFoundError(f"directory does not exist: {local}")
+            print(local)
+        except (ModelConfigurationError, FileNotFoundError) as exc:
+            parser.error(str(exc))
+        return
 
     if args.command == "path":
         try:

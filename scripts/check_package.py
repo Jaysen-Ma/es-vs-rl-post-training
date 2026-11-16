@@ -60,7 +60,7 @@ def main(argv=None):
         with tarfile.open(sdist) as archive:
             archive.extractall(work / "source", filter="data")
         source, = (work / "source").iterdir()
-        for guide in ("reproduction.md", "model_evaluation.md", "development.md"):
+        for guide in ("reproduction.md", "model_evaluation.md"):
             if not (source / "docs" / guide).is_file():
                 raise RuntimeError(f"source distribution is missing docs/{guide}")
 
@@ -125,8 +125,15 @@ assert 'Question: Is this wrong?' in task.read_text()
         checkpoint.mkdir()
         (checkpoint / "config.json").write_text("{}")
         config = work / "models.toml"
-        config.write_text('[models]\n"7B-base" = "checkpoint"\n')
+        harness = work / "math harness"
+        harness.mkdir()
+        (harness / "run_sharded_eval.sh").write_text("#!/bin/bash\nexit 0\n")
+        config.write_text('[models]\n"7B-base" = "checkpoint"\n'
+                          '[paths]\nmath_eval_dir = "math harness"\n'
+                          'ethics_data_dir = "ethics task: # example"\n')
         run(models_cli, "check", "--config", config, "--arms", "7B-base", cwd=work)
+        run(models_cli, "setting", "math_eval_dir", "--config", config, cwd=work)
+        run(models_cli, "setting", "ethics_data_dir", "--config", config, cwd=work)
 
         # Exercise the wheel's extra while retaining the lockfile's versions.
         run(

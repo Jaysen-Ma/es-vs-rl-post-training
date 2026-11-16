@@ -9,9 +9,9 @@
 #   ./run_eval.sh --config config.toml 7B-ES trained my-run
 #   ./run_eval.sh --config config.toml 7B-RL rl my-run 32
 #
-# Install es-capacity in the maths evaluation environment and set MATH_EVAL_DIR
-# to limit-of-RLVR/math/examples/math_eval. The optional config.sh supplies shell
-# settings. --config takes precedence over ES_CAPACITY_CONFIG. Model paths are
+# Install es-capacity in the maths evaluation environment and set paths.math_eval_dir
+# in config.toml to limit-of-RLVR/math/examples/math_eval.
+# --config takes precedence over ES_CAPACITY_CONFIG. Model paths are
 # resolved locally before entering the external harness; no models are downloaded.
 # Existing exported model-path variable names and direct local paths also work.
 #
@@ -41,19 +41,6 @@ N_SAMPLING_OVERRIDE=${4:-}
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
-if [ -f "$REPO_ROOT/config.sh" ]; then
-    source "$REPO_ROOT/config.sh"
-fi
-if [ -z "${MATH_EVAL_DIR:-}" ] && [ -n "${WORKSPACE:-}" ]; then
-    MATH_EVAL_DIR="$WORKSPACE/limit-of-RLVR/math/examples/math_eval"
-fi
-if [ -z "${MATH_EVAL_DIR:-}" ]; then
-    echo "ERROR: MATH_EVAL_DIR is not set." >&2
-    echo "       Copy config.example.sh to config.sh and set it there, or:" >&2
-    echo "       export MATH_EVAL_DIR=/path/to/limit-of-RLVR/math/examples/math_eval" >&2
-    exit 1
-fi
-
 if [[ "$MODEL_DIR" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && [ -n "${!MODEL_DIR:-}" ]; then
     MODEL_DIR="${!MODEL_DIR}"
 fi
@@ -61,6 +48,8 @@ fi
 # Resolve before changing directory to the external harness. All workflows use
 # the installed package's local-only resolver; this does not download models.
 MODEL_DIR=$(python -m es_capacity.cli.models path "$MODEL_DIR" "${MODEL_CONFIG_ARGS[@]}")
+MATH_EVAL_DIR=$(python -m es_capacity.cli.models setting math_eval_dir "${MODEL_CONFIG_ARGS[@]}")
+export MATH_EVAL_DIR
 
 PROMPT_TYPE="qwen-boxed"
 TEMPERATURE=0.6

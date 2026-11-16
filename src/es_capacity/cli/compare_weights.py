@@ -32,7 +32,7 @@ def main(argv=None, *, default_output=None):
         if exc.name not in ("torch", "safetensors"):
             raise
         parser.error("PyTorch and SafeTensors are required in the checkpoint-comparison "
-                     "environment; the analysis extra does not install them. See DEVELOPMENT.md.")
+                     "environment; the analysis extra does not install them. See docs/model_evaluation.md.")
     except OSError as exc:
         parser.error(str(exc))
 

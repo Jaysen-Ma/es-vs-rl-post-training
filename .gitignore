@@ -45,12 +45,11 @@ scripts/convert_to_hf.py
 # distributed or maintained as part of the repo.
 docker/
 
-# Publish the three user/contributor guides. Other local write-ups, including
+# Publish the two user guides. Other local write-ups, including
 # GPQA's full method, per-seed tables and answer-position diagnostics, stay local.
 /docs/*
 !/docs/reproduction.md
 !/docs/model_evaluation.md
-!/docs/development.md
 
 # Editors / OS
 .idea/

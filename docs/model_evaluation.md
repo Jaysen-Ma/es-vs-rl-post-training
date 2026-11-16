@@ -5,8 +5,7 @@ weights. No training step is required. Model execution needs a separate GPU
 evaluation environment; checkpoint comparison runs on the CPU with PyTorch and
 SafeTensors. Neither runtime is installed by the saved-result analysis extra.
 
-For existing predictions, use [saved-result analysis](reproduction.md). The
-[contributor guide](development.md) explains the source layout and tests.
+For existing predictions, use [saved-result analysis](reproduction.md).
 
 ## Download checkpoints
 
@@ -34,9 +33,10 @@ checkpoint repositories. Users download checkpoint files themselves and provide
 local paths. MMLU, GPQA, ETHICS, maths evaluation and checkpoint analysis share the
 same resolver.
 
-Copy `config.example.toml` to `config.toml` and edit the `[models]` table. The six
-paths are independent; directories can have any names. Absolute paths and `~`
-are supported. Relative paths are anchored to the configuration file's directory,
+Copy `config.example.toml` to `config.toml`. Set checkpoint paths under `[models]`
+and optional dataset/harness locations under `[paths]`. This is the only user
+configuration file. The six model paths are independent; directories can have
+any names. Absolute paths and `~` are supported. Relative paths are anchored to the configuration file's directory,
 not the shell's current directory. Shell variables such as `$HOME` are not
 expanded inside TOML strings. `config.toml` is ignored by Git.
 
@@ -45,6 +45,10 @@ expanded inside TOML strings. `config.toml` is ignored by Git.
 "7B-base" = "/data/checkpoints/base"
 "7B-ES" = "/another/disk/es-model"
 "7B-RL" = "../downloaded-checkpoints/grpo"
+
+[paths]
+ethics_data_dir = "/data/ethics/ethics"
+math_eval_dir = "/code/limit-of-RLVR/math/examples/math_eval"
 ```
 
 You may configure a subset and select it with `--arms`. Commands without an arms
@@ -79,25 +83,26 @@ models before dataset preparation and pass the selected config file to workers.
 Existing scripts that relied on automatic model downloads must now download the
 models themselves and configure their paths.
 
-Maths evaluation uses the same config and requires this package installed in its
-own evaluation environment:
+Maths evaluation reads both checkpoint paths and `paths.math_eval_dir` from
+that same file. Install this package in the external harness's evaluation
+environment, then run from the repository root:
 
 ```bash
-export MATH_EVAL_DIR=/path/to/limit-of-RLVR/math/examples/math_eval
 bash scripts/passk/run_eval.sh --config config.toml 7B-base base my-run
 ```
 
-The optional `config.sh` still supplies shell settings to the maths wrapper.
-`config.example.sh` now illustrates the external harness path and config-file
-selection; per-model paths belong in TOML. Existing exported model-path variables
-and direct local paths remain accepted by the maths wrapper. Its argument is
-resolved and checked before it changes directory into the external harness.
-Python scripts do not source shell configuration files.
+The harness directory must contain `run_sharded_eval.sh`. Paths are resolved
+before entering the harness or creating run outputs. The wrapper does not load
+shell configuration files.
 
-`ETHICS_DATA_DIR` selects the unpacked dataset containing `deontology/`, `justice/`,
-`virtue/` and `utilitarianism/`. `es-capacity-evaluate ethics --subset rest --data-dir PATH` takes
-precedence; the `/tmp/ethics/ethics` default is retained. Output-directory defaults
-are unchanged. Analysis of saved outputs does not require model configuration.
+`paths.ethics_data_dir` is the unpacked ETHICS root containing `commonsense/`,
+`deontology/`, `justice/`, `virtue/` and `utilitarianism/`. Commonsense reads
+`commonsense/cm_test.csv`; the other four subsets read their CSVs under this root.
+`--csv` overrides the commonsense input; `--data-dir` overrides the root for the
+other subsets. Configured paths take precedence over the legacy `ETHICS_DATA_DIR`
+and `MATH_EVAL_DIR` environment fallbacks. Without a configured dataset root,
+commonsense retains its archive/cache behaviour and the other subsets retain
+`/tmp/ethics/ethics`. Analysis of saved outputs needs no model configuration.
 
 The write-up's grader-audit workflow is currently excluded from the published
 repository. Making that workflow reproducible is a separate follow-up; the packaging work does not add the ignored local scripts or raw benchmark text.
@@ -159,8 +164,8 @@ Download the desired checkpoints, configure their paths as described in
 explicit output directory:
 
 ```bash
-es-capacity-models check --config /data/models.toml --arms 7B-base 7B-ES 7B-RL
-es-capacity-evaluate mmlu --config /data/models.toml --arms 7B-base 7B-ES 7B-RL --out /data/mmlu-run
+es-capacity-models check --config /data/config.toml --arms 7B-base 7B-ES 7B-RL
+es-capacity-evaluate mmlu --config /data/config.toml --arms 7B-base 7B-ES 7B-RL --out /data/mmlu-run
 ```
 
 Run these commands with the evaluation environment's executables. When no arms
@@ -224,7 +229,7 @@ downloaded checkpoints and the same model configuration as MMLU. This command
 runs models; `es-capacity-gpqa` analyses the saved outputs.
 
 ```bash
-es-capacity-evaluate gpqa --config /data/models.toml --arms 7B-base 7B-ES 7B-RL --seeds 0 1 2 3 4 5 6 7 8 9 --out /data/gpqa-sweep
+es-capacity-evaluate gpqa --config /data/config.toml --arms 7B-base 7B-ES 7B-RL --seeds 0 1 2 3 4 5 6 7 8 9 --out /data/gpqa-sweep
 es-capacity-gpqa check --results-dir /data/gpqa-sweep
 es-capacity-gpqa summarize --results-dir /data/gpqa-sweep --out /data/gpqa-summary --pair 7B-ES:7B-base --pair 7B-RL:7B-base
 ```
@@ -287,11 +292,14 @@ described above and SciPy for the automatic statistical summary. The separate
 `es-capacity-ethics` command analyses saved predictions without loading models.
 
 ```bash
-es-capacity-evaluate ethics --subset commonsense --config /data/models.toml --arms 7B-base 7B-ES 7B-RL --csv /data/ethics/commonsense/cm_test.csv --out /data/ethics-run
+es-capacity-evaluate ethics --subset commonsense --config /data/config.toml --arms 7B-base 7B-ES 7B-RL --out /data/ethics-run
 ```
 
 `--csv` selects an existing official test CSV with `label` and `input` columns.
-With no CSV selected, the runner reuses `OUTPUT/cm_test.jsonl` if present;
+With no `--csv`, the runner first uses `paths.ethics_data_dir/commonsense/cm_test.csv`
+when a dataset root is configured. A missing configured CSV fails before writing
+output or downloading data. With neither a CSV nor dataset root selected, it
+reuses `OUTPUT/cm_test.jsonl` if present;
 otherwise it reuses or downloads the official `ethics.tar` archive under `--out`
 and reads its commonsense test split. Checkpoints are checked before data
 preparation or worker startup. An explicit missing CSV is also rejected before
@@ -332,14 +340,14 @@ code. Actual GPU inference remains unvalidated.
 ## Other ETHICS subsets
 
 ```bash
-es-capacity-evaluate ethics --subset rest --config /data/models.toml --arms 7B-base 7B-ES 7B-RL --data-dir /data/ethics --out /data/ethics-run
+es-capacity-evaluate ethics --subset rest --config /data/config.toml --arms 7B-base 7B-ES 7B-RL --out /data/ethics-run
 ```
 
 `rest` evaluates deontology, justice, virtue and utilitarianism together. The
 dataset root must contain `deontology/deontology_test.csv`,
 `justice/justice_test.csv`, `virtue/virtue_test.csv` and
-`utilitarianism/util_test.csv`. `--data-dir` overrides `ETHICS_DATA_DIR`, then the
-existing `/tmp/ethics/ethics` fallback. Missing inputs fail before writing output.
+`utilitarianism/util_test.csv`. `--data-dir` overrides `paths.ethics_data_dir`,
+then the legacy `ETHICS_DATA_DIR` and `/tmp/ethics/ethics` fallbacks. Missing inputs fail before writing output.
 The default model order remains the three 7B arms followed by the three 1.5B arms.
 
 Preparation writes `rest_data/` JSONLs and `rest_tasks/` YAMLs with quoted absolute
@@ -356,7 +364,7 @@ always zero-shot for these four subsets; `--csv` is for commonsense only.
 CPU and writes the inputs for weight-distribution plotting:
 
 ```bash
-es-capacity-compare-weights --config /data/models.toml --scale 7B --arms ES RL --out /data/weight-comparisons
+es-capacity-compare-weights --config /data/config.toml --scale 7B --arms ES RL --out /data/weight-comparisons
 es-capacity-weights --scale 7B --results-dir /data/weight-comparisons --out /data/weight-figures
 ```
 

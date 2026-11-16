@@ -6,7 +6,7 @@ from pathlib import Path
 from es_capacity.cli.models import add_config_argument, validate_model_args
 from es_capacity.evaluation import ethics_commonsense, ethics_rest, gpqa, mmlu
 from es_capacity.config import ethics_data_dir
-from es_capacity.models import MODELS
+from es_capacity.models import MODELS, ModelConfigurationError
 
 
 def _add_model_arguments(command, default_output, *, gpu_memory, max_model_len, default_arms=None):
@@ -79,11 +79,20 @@ def main(argv=None, *, default_mmlu_output=None, default_gpqa_output=None, defau
     if args.command == "ethics" and args.subset == "rest":
         if args.csv is not None or args.num_fewshot != 0:
             command.error("--csv and nonzero --num-fewshot apply only to commonsense")
-        args.data_dir = (args.data_dir if args.data_dir is not None else ethics_data_dir()).expanduser().resolve()
+        args.data_dir = (args.data_dir if args.data_dir is not None else ethics_data_dir(args.config)).expanduser().resolve()
         if not args.data_dir.is_dir():
-            command.error(f"missing {args.data_dir}; set --data-dir or ETHICS_DATA_DIR to the unpacked ETHICS directory")
+            command.error(f"missing {args.data_dir}; set paths.ethics_data_dir in config.toml or --data-dir to the unpacked ETHICS directory")
     elif args.command == "ethics" and args.data_dir is not None:
         command.error("--data-dir applies only to --subset rest; use --csv for commonsense")
+    # The parent selects/converts the CSV; workers reuse its prepared JSONL.
+    if (args.command == "ethics" and args.subset == "commonsense"
+            and args.csv is None and args._arm is None):
+        try:
+            data_dir = ethics_data_dir(args.config, default=None)
+        except ModelConfigurationError as exc:
+            command.error(str(exc))
+        if data_dir is not None:
+            args.csv = data_dir / "commonsense/cm_test.csv"
     if args.command == "ethics" and args.csv is not None:
         args.csv = args.csv.expanduser().resolve()
         if not args.csv.is_file():
@@ -105,7 +114,7 @@ def main(argv=None, *, default_mmlu_output=None, default_gpqa_output=None, defau
         command.error(
             f"missing evaluation dependency {exc.name!r}; use an existing GPU "
             "evaluation environment with lm_eval, Datasets and vLLM, then install "
-            "this package into that environment. See DEVELOPMENT.md. "
+            "this package into that environment. See docs/model_evaluation.md. "
             "The analysis extra does not install the model runtime."
         )
     except OSError as exc:

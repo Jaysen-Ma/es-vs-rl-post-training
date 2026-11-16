@@ -81,8 +81,9 @@ commands and which study results can be regenerated from included files.
 [Download links for all six checkpoints](docs/model_evaluation.md#download-checkpoints)
 and [model configuration instructions](docs/model_evaluation.md#model-and-data-paths)
 are in the evaluation guide. You download the models yourself and provide their
-independent local paths in `config.toml`; the runners do not fall back to Hub
-model downloads. No training is required.
+independent local paths in `config.toml`. The same file holds optional ETHICS
+dataset and maths-harness paths. The runners do not fall back to Hub model
+downloads. No training is required.
 
 In an existing GPU evaluation environment with this package installed:
 
@@ -96,10 +97,17 @@ ETHICS subsets, the external maths harness and CPU checkpoint comparison. It
 states the runtime requirements and validation limits. The old script commands
 remain available as compatibility launchers.
 
-For the source layout, tests and CI, see the [contributor guide](docs/development.md).
-Versioned downloads, when published, are on
-[GitHub Releases](https://github.com/Jaysen-Ma/es-vs-rl-post-training/releases);
-see the [release notes](CHANGELOG.md) and [installation instructions](RELEASING.md#install-a-release).
+Reusable code lives in `src/es_capacity/`, tests in `tests/`, and script launchers
+in `scripts/`. Run the tests with:
+
+```bash
+uv run --locked --group analysis python -m unittest discover -s tests -v
+```
+
+CI also checks fresh package installations on Python 3.10 and 3.12. Versioned
+release notes and downloads, when published, are on
+[GitHub Releases](https://github.com/Jaysen-Ma/es-vs-rl-post-training/releases).
+See the [release procedure and installation instructions](RELEASING.md).
 
 ## Acknowledgements
 
