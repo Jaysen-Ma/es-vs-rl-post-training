@@ -2,6 +2,8 @@
 <h1>What Post-Training Changes: Reasoning Gains and Safety Side Effects of ES vs RL</h1>
 
 <a href="writeup/writeup.pdf"><img src='https://img.shields.io/badge/Write--up-PDF-red' alt='Write-up PDF'></a>
+
+<p><em>The write-up is a draft and is still being updated.</em></p>
 </div>
 
 ## Overview
